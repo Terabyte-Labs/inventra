@@ -1,6 +1,7 @@
 package mx.terabyte.labs.inventra.auth;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import mx.terabyte.labs.inventra.auth.role.RoleEntity;
 import mx.terabyte.labs.inventra.auth.user.UserEntity;
 import mx.terabyte.labs.inventra.config.security.JwtProperties;
@@ -13,12 +14,14 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class JwtService {
 
     private final JwtEncoder jwtEncoder;
     private final JwtProperties jwtProperties;
 
     public String generateToken(UserEntity user) {
+        log.debug("Generating JWT token for user: username={}", user.getUsername());
         Instant now = Instant.now();
         Instant expiresAt = now.plusSeconds(jwtProperties.expirationMinutes() * 60);
 
@@ -39,8 +42,11 @@ public class JwtService {
 
         JwsHeader jwsHeader = JwsHeader.with(MacAlgorithm.HS256).build();
 
-        return jwtEncoder.encode(
+        String token = jwtEncoder.encode(
                 JwtEncoderParameters.from(jwsHeader, claims)
         ).getTokenValue();
+
+        log.debug("JWT token generated successfully for user: username={}", user.getUsername());
+        return token;
     }
 }

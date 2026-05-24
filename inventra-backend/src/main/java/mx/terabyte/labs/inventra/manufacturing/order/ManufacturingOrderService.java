@@ -1,6 +1,7 @@
 package mx.terabyte.labs.inventra.manufacturing.order;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import mx.terabyte.labs.inventra.auth.CurrentUserService;
 import mx.terabyte.labs.inventra.auth.user.UserEntity;
 import mx.terabyte.labs.inventra.catalog.product.ProductRepository;
@@ -33,6 +34,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ManufacturingOrderService {
 
     private final ManufacturingOrderRepository manufacturingOrderRepository;
@@ -52,8 +54,12 @@ public class ManufacturingOrderService {
     public CreateManufacturingOrderResponse create(
             CreateManufacturingOrderRequest request
     ) {
+        log.info("Creating manufacturing order: orderNumber={}, formulaCode={}, warehouseCode={}, plannedQuantity={}",
+                request.orderNumber(), request.formulaCode(), request.warehouseCode(), request.plannedQuantity());
+
         manufacturingOrderRepository.findByOrderNumber(request.orderNumber())
                 .ifPresent(existing -> {
+                    log.warn("Manufacturing order already exists: orderNumber={}", request.orderNumber());
                     throw new BusinessException(
                             "MANUFACTURING_ORDER_ALREADY_EXISTS",
                             "Manufacturing order already exists for order number: "
@@ -66,21 +72,27 @@ public class ManufacturingOrderService {
                         request.formulaCode(),
                         request.formulaVersion()
                 )
-                .orElseThrow(() -> new BusinessException(
-                        "FORMULA_NOT_FOUND",
-                        "Formula not found for code: "
-                                + request.formulaCode()
-                                + " and version: "
-                                + request.formulaVersion()
-                ));
+                .orElseThrow(() -> {
+                    log.error("Formula not found: code={}, version={}", request.formulaCode(), request.formulaVersion());
+                    return new BusinessException(
+                            "FORMULA_NOT_FOUND",
+                            "Formula not found for code: "
+                                    + request.formulaCode()
+                                    + " and version: "
+                                    + request.formulaVersion()
+                    );
+                });
 
         WarehouseEntity warehouse = warehouseRepository
                 .findByCode(request.warehouseCode())
-                .orElseThrow(() -> new BusinessException(
-                        "WAREHOUSE_NOT_FOUND",
-                        "Warehouse not found for code: "
-                                + request.warehouseCode()
-                ));
+                .orElseThrow(() -> {
+                    log.error("Warehouse not found: code={}", request.warehouseCode());
+                    return new BusinessException(
+                            "WAREHOUSE_NOT_FOUND",
+                            "Warehouse not found for code: "
+                                    + request.warehouseCode()
+                    );
+                });
 
         ProductEntity outputProduct = formula.getProduct();
 
@@ -96,6 +108,7 @@ public class ManufacturingOrderService {
         order.setCreatedAt(LocalDateTime.now());
 
         manufacturingOrderRepository.save(order);
+        log.info("Manufacturing order created successfully: orderId={}, orderNumber={}", order.getId(), order.getOrderNumber());
 
         return new CreateManufacturingOrderResponse(
                 order.getId(),
@@ -110,15 +123,21 @@ public class ManufacturingOrderService {
 
     @Transactional
     public StartManufacturingOrderResponse start(String orderNumber) {
+        log.info("Starting manufacturing order: orderNumber={}", orderNumber);
 
         ManufacturingOrderEntity order = manufacturingOrderRepository
                 .findByOrderNumber(orderNumber)
-                .orElseThrow(() -> new BusinessException(
-                        "MANUFACTURING_ORDER_NOT_FOUND",
-                        "Manufacturing order not found: " + orderNumber
-                ));
+                .orElseThrow(() -> {
+                    log.error("Manufacturing order not found: orderNumber={}", orderNumber);
+                    return new BusinessException(
+                            "MANUFACTURING_ORDER_NOT_FOUND",
+                            "Manufacturing order not found: " + orderNumber
+                    );
+                });
 
         if (order.getStatus() != ManufacturingOrderStatus.DRAFT) {
+            log.warn("Cannot start manufacturing order with invalid status: orderNumber={}, status={}",
+                    orderNumber, order.getStatus());
             throw new BusinessException(
                     "INVALID_MANUFACTURING_ORDER_STATUS",
                     "Only DRAFT manufacturing orders can be started. Current status: "
@@ -130,6 +149,8 @@ public class ManufacturingOrderService {
         order.setStartedAt(LocalDateTime.now());
 
         manufacturingOrderRepository.save(order);
+        log.info("Manufacturing order started successfully: orderNumber={}, startedAt={}",
+                orderNumber, order.getStartedAt());
 
         return new StartManufacturingOrderResponse(
                 order.getId(),

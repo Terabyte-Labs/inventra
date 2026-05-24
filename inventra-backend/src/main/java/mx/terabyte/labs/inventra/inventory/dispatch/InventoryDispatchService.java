@@ -1,6 +1,7 @@
 package mx.terabyte.labs.inventra.inventory.dispatch;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import mx.terabyte.labs.inventra.auth.CurrentUserService;
 import mx.terabyte.labs.inventra.auth.user.UserEntity;
 import mx.terabyte.labs.inventra.catalog.product.ProductEntity;
@@ -24,6 +25,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class InventoryDispatchService {
 
     private final ProductRepository productRepository;
@@ -36,18 +38,26 @@ public class InventoryDispatchService {
     public DispatchInventoryResponse dispatch(
             DispatchInventoryRequest request
     ) {
+        log.info("Dispatching inventory: sku={}, warehouseCode={}, quantity={}",
+                request.sku(), request.warehouseCode(), request.quantity());
 
         ProductEntity product = productRepository.findBySku(request.sku())
-                .orElseThrow(() -> new BusinessException(
-                        "PRODUCT_NOT_FOUND",
-                        "Product not found for SKU: " + request.sku()
-                ));
+                .orElseThrow(() -> {
+                    log.error("Product not found for dispatch: sku={}", request.sku());
+                    return new BusinessException(
+                            "PRODUCT_NOT_FOUND",
+                            "Product not found for SKU: " + request.sku()
+                    );
+                });
 
         WarehouseEntity warehouse = warehouseRepository.findByCode(request.warehouseCode())
-                .orElseThrow(() -> new BusinessException(
-                        "WAREHOUSE_NOT_FOUND",
-                        "Warehouse not found for code: " + request.warehouseCode()
-                ));
+                .orElseThrow(() -> {
+                    log.error("Warehouse not found for dispatch: warehouseCode={}", request.warehouseCode());
+                    return new BusinessException(
+                            "WAREHOUSE_NOT_FOUND",
+                            "Warehouse not found for code: " + request.warehouseCode()
+                    );
+                });
 
         StockBalanceEntity stock = stockBalanceRepository
                 .findByProductIdAndWarehouseId(

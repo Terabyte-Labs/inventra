@@ -19,6 +19,8 @@ public record InventoryMovementResponse(
         BigDecimal unitPrice,
         String storageLocation,
         String notes,
+        String createdByUsername,
         LocalDateTime createdAt
+
 ) {
 }

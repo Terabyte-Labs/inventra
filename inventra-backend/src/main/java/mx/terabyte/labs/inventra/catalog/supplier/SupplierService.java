@@ -1,6 +1,7 @@
 package mx.terabyte.labs.inventra.catalog.supplier;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import mx.terabyte.labs.inventra.catalog.supplier.dto.*;
 import mx.terabyte.labs.inventra.common.exception.BusinessException;
 import org.springframework.data.domain.Page;
@@ -15,6 +16,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class SupplierService {
 
     private final SupplierRepository repository;
@@ -24,6 +26,7 @@ public class SupplierService {
             String name,
             Pageable pageable
     ) {
+        log.debug("Searching suppliers with name filter: name={}", name);
 
         Specification<SupplierEntity> spec = Specification.unrestricted();
 
@@ -42,9 +45,11 @@ public class SupplierService {
 
     @Transactional
     public SupplierResponse create(CreateSupplierRequest request) {
+        log.info("Creating new supplier: code={}, name={}", request.code(), request.name());
 
         repository.findByCode(request.code())
                 .ifPresent(existing -> {
+                    log.warn("Supplier already exists: code={}", request.code());
                     throw new BusinessException(
                             "SUPPLIER_ALREADY_EXISTS",
                             "Supplier already exists with code: " + request.code()

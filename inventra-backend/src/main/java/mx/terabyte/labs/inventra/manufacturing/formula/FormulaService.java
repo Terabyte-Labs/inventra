@@ -1,6 +1,7 @@
 package mx.terabyte.labs.inventra.manufacturing.formula;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import mx.terabyte.labs.inventra.catalog.product.ProductEntity;
 import mx.terabyte.labs.inventra.catalog.product.ProductRepository;
 import mx.terabyte.labs.inventra.common.exception.BusinessException;
@@ -15,6 +16,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class FormulaService {
 
     private final FormulaRepository formulaRepository;
@@ -25,9 +27,12 @@ public class FormulaService {
     public CreateFormulaResponse create(
             CreateFormulaRequest request
     ) {
+        log.info("Creating new formula: code={}, version={}, outputProductSku={}",
+                request.code(), request.version(), request.outputProductSku());
 
         formulaRepository.findByCodeAndVersion(request.code(), request.version())
                 .ifPresent(existing -> {
+                    log.warn("Formula already exists: code={}, version={}", request.code(), request.version());
                     throw new BusinessException(
                             "FORMULA_ALREADY_EXISTS",
                             "Formula already exists with code: " + request.code()
@@ -37,10 +42,13 @@ public class FormulaService {
 
         ProductEntity outputProduct = productRepository
                 .findBySku(request.outputProductSku())
-                .orElseThrow(() -> new BusinessException(
-                        "PRODUCT_NOT_FOUND",
-                        "Output product not found: " + request.outputProductSku()
-                ));
+                .orElseThrow(() -> {
+                    log.error("Output product not found for formula: sku={}", request.outputProductSku());
+                    return new BusinessException(
+                            "PRODUCT_NOT_FOUND",
+                            "Output product not found: " + request.outputProductSku()
+                    );
+                });
 
         FormulaEntity formula = new FormulaEntity();
 

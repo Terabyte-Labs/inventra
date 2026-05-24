@@ -1,6 +1,7 @@
 package mx.terabyte.labs.inventra.catalog.category;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import mx.terabyte.labs.inventra.catalog.category.dto.CreateProductCategoryRequest;
 import mx.terabyte.labs.inventra.catalog.category.dto.ProductCategoryResponse;
 import mx.terabyte.labs.inventra.catalog.category.dto.UpdateProductCategoryRequest;
@@ -16,6 +17,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ProductCategoryService {
 
     private final ProductCategoryRepository repository;
@@ -25,6 +27,7 @@ public class ProductCategoryService {
             String name,
             Pageable pageable
     ) {
+        log.debug("Searching product categories with name filter: name={}", name);
         Specification<ProductCategoryEntity> spec = Specification.unrestricted();
 
         if (name != null && !name.isBlank()) {
@@ -42,8 +45,10 @@ public class ProductCategoryService {
 
     @Transactional
     public ProductCategoryResponse create(CreateProductCategoryRequest request) {
+        log.info("Creating new product category: name={}", request.name());
         repository.findByName(request.name())
                 .ifPresent(existing -> {
+                    log.warn("Product category already exists: name={}", request.name());
                     throw new BusinessException(
                             "PRODUCT_CATEGORY_ALREADY_EXISTS",
                             "Product category already exists with name: " + request.name()
@@ -57,7 +62,9 @@ public class ProductCategoryService {
         entity.setDescription(request.description());
         entity.setCreatedAt(LocalDateTime.now());
 
-        return toResponse(repository.save(entity));
+        ProductCategoryEntity saved = repository.save(entity);
+        log.info("Product category created successfully: id={}, name={}", saved.getId(), saved.getName());
+        return toResponse(saved);
     }
 
     @Transactional
@@ -65,15 +72,20 @@ public class ProductCategoryService {
             UUID id,
             UpdateProductCategoryRequest request
     ) {
+        log.info("Updating product category: id={}, newName={}", id, request.name());
         ProductCategoryEntity entity = repository.findById(id)
-                .orElseThrow(() -> new BusinessException(
-                        "PRODUCT_CATEGORY_NOT_FOUND",
-                        "Product category not found: " + id
-                ));
+                .orElseThrow(() -> {
+                    log.error("Product category not found for update: id={}", id);
+                    return new BusinessException(
+                            "PRODUCT_CATEGORY_NOT_FOUND",
+                            "Product category not found: " + id
+                    );
+                });
 
         repository.findByName(request.name())
                 .filter(existing -> !existing.getId().equals(id))
                 .ifPresent(existing -> {
+                    log.warn("Product category already exists with this name: name={}", request.name());
                     throw new BusinessException(
                             "PRODUCT_CATEGORY_ALREADY_EXISTS",
                             "Product category already exists with name: " + request.name()
@@ -83,7 +95,9 @@ public class ProductCategoryService {
         entity.setName(request.name());
         entity.setDescription(request.description());
 
-        return toResponse(repository.save(entity));
+        ProductCategoryEntity updated = repository.save(entity);
+        log.info("Product category updated successfully: id={}", id);
+        return toResponse(updated);
     }
 
     private ProductCategoryResponse toResponse(ProductCategoryEntity entity) {

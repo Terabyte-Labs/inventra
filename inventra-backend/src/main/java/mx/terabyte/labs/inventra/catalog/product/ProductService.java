@@ -1,5 +1,6 @@
 package mx.terabyte.labs.inventra.catalog.product;
 
+import lombok.extern.slf4j.Slf4j;
 import mx.terabyte.labs.inventra.catalog.category.ProductCategoryEntity;
 import mx.terabyte.labs.inventra.catalog.category.ProductCategoryRepository;
 import mx.terabyte.labs.inventra.catalog.product.dto.CreateProductRequest;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@Slf4j
 public class ProductService {
 
     private final ProductRepository productRepository;
@@ -35,6 +37,7 @@ public class ProductService {
 
     @Transactional(readOnly = true)
     public List<ProductResponse> findAll() {
+        log.debug("Fetching all products without pagination");
         return productRepository.findAll()
                 .stream()
                 .map(this::toResponse)
@@ -63,6 +66,8 @@ public class ProductService {
             String categoryName,
             Pageable pageable
     ) {
+        log.debug("Searching products with filters: sku={}, name={}, productType={}, active={}, categoryId={}", 
+                sku, name, productType, active, categoryId);
         Specification<ProductEntity> spec = Specification.unrestricted();
 
         if (categoryId != null) {
@@ -116,11 +121,15 @@ public class ProductService {
 
     @Transactional(readOnly = true)
     public ProductSearchResponse findBySku(String sku) {
+        log.debug("Finding product by SKU: sku={}", sku);
         ProductEntity entity = productRepository.findBySku(sku)
-                .orElseThrow(() -> new BusinessException(
-                        "PRODUCT_NOT_FOUND",
-                        "Product not found for SKU: " + sku
-                ));
+                .orElseThrow(() -> {
+                    log.warn("Product not found for SKU: sku={}", sku);
+                    return new BusinessException(
+                            "PRODUCT_NOT_FOUND",
+                            "Product not found for SKU: " + sku
+                    );
+                });
 
         return toSearchResponse(entity);
     }
@@ -130,18 +139,25 @@ public class ProductService {
             String sku,
             UpdateProductRequest request
     ) {
+        log.info("Updating product: sku={}, newName={}", sku, request.name());
 
         ProductEntity entity = productRepository.findBySku(sku)
-                .orElseThrow(() -> new BusinessException(
-                        "PRODUCT_NOT_FOUND",
-                        "Product not found for SKU: " + sku
-                ));
+                .orElseThrow(() -> {
+                    log.error("Product not found for update: sku={}", sku);
+                    return new BusinessException(
+                            "PRODUCT_NOT_FOUND",
+                            "Product not found for SKU: " + sku
+                    );
+                });
 
         ProductCategoryEntity category = productCategoryRepository.findById(request.categoryId())
-                .orElseThrow(() -> new BusinessException(
-                        "PRODUCT_CATEGORY_NOT_FOUND",
-                        "Product category not found: " + request.categoryId()
-                ));
+                .orElseThrow(() -> {
+                    log.error("Product category not found: categoryId={}", request.categoryId());
+                    return new BusinessException(
+                            "PRODUCT_CATEGORY_NOT_FOUND",
+                            "Product category not found: " + request.categoryId()
+                    );
+                });
 
 
         entity.setName(request.name());
@@ -152,15 +168,18 @@ public class ProductService {
         entity.setCategory(category);
 
         productRepository.save(entity);
+        log.info("Product updated successfully: sku={}", sku);
 
         return toSearchResponse(entity);
     }
 
     @Transactional
     public ProductSearchResponse create(CreateProductRequest request) {
+        log.info("Creating new product: sku={}, name={}", request.sku(), request.name());
 
         productRepository.findBySku(request.sku())
                 .ifPresent(existing -> {
+                    log.warn("Product already exists: sku={}", request.sku());
                     throw new BusinessException(
                             "PRODUCT_ALREADY_EXISTS",
                             "Product already exists for SKU: " + request.sku()
@@ -169,16 +188,22 @@ public class ProductService {
 
         UnitOfMeasureEntity unit = unitOfMeasureRepository
                 .findByCode(request.unitOfMeasureCode())
-                .orElseThrow(() -> new BusinessException(
-                        "UNIT_OF_MEASURE_NOT_FOUND",
-                        "Unit of measure not found for code: " + request.unitOfMeasureCode()
-                ));
+                .orElseThrow(() -> {
+                    log.error("Unit of measure not found: code={}", request.unitOfMeasureCode());
+                    return new BusinessException(
+                            "UNIT_OF_MEASURE_NOT_FOUND",
+                            "Unit of measure not found for code: " + request.unitOfMeasureCode()
+                    );
+                });
 
         ProductCategoryEntity category = productCategoryRepository.findById(request.categoryId())
-                .orElseThrow(() -> new BusinessException(
-                        "PRODUCT_CATEGORY_NOT_FOUND",
-                        "Product category not found: " + request.categoryId()
-                ));
+                .orElseThrow(() -> {
+                    log.error("Product category not found: categoryId={}", request.categoryId());
+                    return new BusinessException(
+                            "PRODUCT_CATEGORY_NOT_FOUND",
+                            "Product category not found: " + request.categoryId()
+                    );
+                });
 
         ProductEntity entity = new ProductEntity();
 
@@ -194,6 +219,7 @@ public class ProductService {
         entity.setCategory(category);
 
         ProductEntity saved = productRepository.save(entity);
+        log.info("Product created successfully: sku={}, productId={}", request.sku(), saved.getId());
 
         return toSearchResponse(saved);
     }
