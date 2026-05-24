@@ -1,6 +1,8 @@
 package mx.terabyte.labs.inventra.inventory.dispatch;
 
 import lombok.RequiredArgsConstructor;
+import mx.terabyte.labs.inventra.auth.CurrentUserService;
+import mx.terabyte.labs.inventra.auth.user.UserEntity;
 import mx.terabyte.labs.inventra.catalog.product.ProductEntity;
 import mx.terabyte.labs.inventra.catalog.product.ProductRepository;
 import mx.terabyte.labs.inventra.common.enums.MovementType;
@@ -28,6 +30,7 @@ public class InventoryDispatchService {
     private final WarehouseRepository warehouseRepository;
     private final StockBalanceRepository stockBalanceRepository;
     private final InventoryMovementRepository inventoryMovementRepository;
+    private final CurrentUserService currentUserService;
 
     @Transactional
     public DispatchInventoryResponse dispatch(
@@ -72,6 +75,7 @@ public class InventoryDispatchService {
 
         stockBalanceRepository.save(stock);
 
+        UserEntity currentUser = currentUserService.getCurrentUser();
         InventoryMovementEntity movement = new InventoryMovementEntity();
 
         movement.setId(UUID.randomUUID());
@@ -83,6 +87,7 @@ public class InventoryDispatchService {
         movement.setAfterQuantity(after);
         movement.setNotes(request.notes());
         movement.setCreatedAt(LocalDateTime.now());
+        movement.setCreatedBy(currentUser);
 
         inventoryMovementRepository.save(movement);
 

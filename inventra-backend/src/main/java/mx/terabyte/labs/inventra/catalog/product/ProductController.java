@@ -10,7 +10,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/products")
@@ -28,15 +31,18 @@ public class ProductController {
             @RequestParam(name = "name", required = false) String name,
             @RequestParam(name = "productType", required = false) ProductType productType,
             @RequestParam(name = "active", required = false) Boolean active,
+            @RequestParam(name = "categoryId", required = false) UUID categoryId,
+            @RequestParam(name = "categoryName", required = false) String categoryName,
             @PageableDefault(size = 20, sort = "name", direction = Sort.Direction.ASC)
             Pageable pageable
     ) {
         return ApiResponse.ok(
-                productService.findAll(sku, name, productType, active, pageable)
+                productService.findAll(sku, name, productType, active, categoryId, categoryName, pageable)
         );
     }
 
     @GetMapping("/{sku}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<ProductSearchResponse> findBySku(
             @PathVariable("sku") String sku
     ) {

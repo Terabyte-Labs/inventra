@@ -53,14 +53,32 @@ public class ProductService {
         );
     }
 
+    @Transactional(readOnly = true)
     public Page<ProductSearchResponse> findAll(
             String sku,
             String name,
             ProductType productType,
             Boolean active,
+            UUID categoryId,
+            String categoryName,
             Pageable pageable
     ) {
         Specification<ProductEntity> spec = Specification.unrestricted();
+
+        if (categoryId != null) {
+            spec = spec.and((root, query, cb) ->
+                    cb.equal(root.get("category").get("id"), categoryId)
+            );
+        }
+
+        if (categoryName != null && !categoryName.isBlank()) {
+            spec = spec.and((root, query, cb) ->
+                    cb.like(
+                            cb.lower(root.get("category").get("name")),
+                            "%" + categoryName.toLowerCase() + "%"
+                    )
+            );
+        }
 
         if (sku != null && !sku.isBlank()) {
             spec = spec.and((root, query, cb) ->
@@ -120,10 +138,10 @@ public class ProductService {
                 ));
 
         ProductCategoryEntity category = productCategoryRepository.findById(request.categoryId())
-            .orElseThrow(() -> new BusinessException(
-                "PRODUCT_CATEGORY_NOT_FOUND",
-                "Product category not found: " + request.categoryId()
-            ));
+                .orElseThrow(() -> new BusinessException(
+                        "PRODUCT_CATEGORY_NOT_FOUND",
+                        "Product category not found: " + request.categoryId()
+                ));
 
 
         entity.setName(request.name());

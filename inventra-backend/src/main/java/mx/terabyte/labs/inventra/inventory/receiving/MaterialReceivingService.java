@@ -1,6 +1,8 @@
 package mx.terabyte.labs.inventra.inventory.receiving;
 
 import lombok.RequiredArgsConstructor;
+import mx.terabyte.labs.inventra.auth.CurrentUserService;
+import mx.terabyte.labs.inventra.auth.user.UserEntity;
 import mx.terabyte.labs.inventra.catalog.product.ProductEntity;
 import mx.terabyte.labs.inventra.catalog.product.ProductRepository;
 import mx.terabyte.labs.inventra.catalog.product.barcode.ProductBarcodeEntity;
@@ -37,6 +39,7 @@ public class MaterialReceivingService {
     private final ProductBarcodeRepository productBarcodeRepository;
     private final StockBalanceRepository stockBalanceRepository;
     private final InventoryMovementRepository inventoryMovementRepository;
+    private final CurrentUserService currentUserService;
 
     @Transactional
     public ReceiveMaterialResponse receive(ReceiveMaterialRequest request) {
@@ -88,6 +91,8 @@ public class MaterialReceivingService {
 
         stockBalanceRepository.save(stock);
 
+        UserEntity currentUSer = currentUserService.getCurrentUser();
+
         InventoryMovementEntity movement = new InventoryMovementEntity();
 
         movement.setId(UUID.randomUUID());
@@ -102,6 +107,7 @@ public class MaterialReceivingService {
         movement.setStorageLocation(request.storageLocation());
         movement.setNotes(request.notes());
         movement.setCreatedAt(LocalDateTime.now());
+        movement.setCreatedBy(currentUSer);
 
         inventoryMovementRepository.save(movement);
 

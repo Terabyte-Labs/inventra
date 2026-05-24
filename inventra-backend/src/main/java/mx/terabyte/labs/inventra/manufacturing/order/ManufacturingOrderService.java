@@ -1,6 +1,8 @@
 package mx.terabyte.labs.inventra.manufacturing.order;
 
 import lombok.RequiredArgsConstructor;
+import mx.terabyte.labs.inventra.auth.CurrentUserService;
+import mx.terabyte.labs.inventra.auth.user.UserEntity;
 import mx.terabyte.labs.inventra.catalog.product.ProductRepository;
 import mx.terabyte.labs.inventra.common.enums.ManufacturingOrderStatus;
 import mx.terabyte.labs.inventra.common.enums.MovementType;
@@ -27,7 +29,6 @@ import mx.terabyte.labs.inventra.catalog.product.ProductEntity;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -44,6 +45,7 @@ public class ManufacturingOrderService {
     private final ManufacturingOrderOutputRepository manufacturingOrderOutputRepository;
     private final ProductRepository productRepository;
     private final ProductLotRepository productLotRepository;
+    private final CurrentUserService currentUserService;
 
 
     @Transactional
@@ -200,7 +202,7 @@ public class ManufacturingOrderService {
         stock.setUpdatedAt(LocalDateTime.now());
 
         stockBalanceRepository.save(stock);
-
+        UserEntity currentUser = currentUserService.getCurrentUser();
         InventoryMovementEntity movement = new InventoryMovementEntity();
 
         movement.setId(UUID.randomUUID());
@@ -215,6 +217,7 @@ public class ManufacturingOrderService {
         movement.setNotes(request.notes());
         movement.setCreatedAt(LocalDateTime.now());
         movement.setProductLot(lot);
+        movement.setCreatedBy(currentUser);
 
         inventoryMovementRepository.save(movement);
 
@@ -300,6 +303,7 @@ public class ManufacturingOrderService {
         productLotRepository.save(lot);
 
         InventoryMovementEntity movement = new InventoryMovementEntity();
+        UserEntity currentUser = currentUserService.getCurrentUser();
 
         movement.setId(UUID.randomUUID());
         movement.setProduct(product);
@@ -312,6 +316,7 @@ public class ManufacturingOrderService {
         movement.setReferenceId(order.getId());
         movement.setNotes(request.notes());
         movement.setCreatedAt(LocalDateTime.now());
+        movement.setCreatedBy(currentUser);
         movement.setProductLot(lot);
 
         inventoryMovementRepository.save(movement);

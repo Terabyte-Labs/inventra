@@ -3,8 +3,11 @@ package mx.terabyte.labs.inventra.auth.user;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import mx.terabyte.labs.inventra.auth.role.RoleEntity;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Getter
@@ -36,4 +39,13 @@ public class UserEntity {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(
+            name = "user_roles",
+            schema = "auth",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "role_id")
+    )
+    private Set<RoleEntity> roles = new HashSet<>();
 }

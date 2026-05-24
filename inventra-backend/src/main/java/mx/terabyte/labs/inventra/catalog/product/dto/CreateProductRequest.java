@@ -16,6 +16,6 @@ public record CreateProductRequest(
         @NotNull @PositiveOrZero BigDecimal minStock,
         @NotNull Boolean active,
         @NotBlank String unitOfMeasureCode,
-        UUID categoryId
+        @NotNull UUID categoryId
 ) {
 }
