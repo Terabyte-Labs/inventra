@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: inventra-postgres
+    environment:
+      POSTGRES_DB: inventra
+      POSTGRES_USER: inventra
+      POSTGRES_PASSWORD: inventra
+    ports:
+      - "5432:5432"
+    volumes:
+      - inventra_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  inventra_postgres_data:

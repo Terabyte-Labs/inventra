@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: inventra-backend
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/inventra
+    username: inventra
+    password: inventra
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+server:
+  port: 8080
