@@ -11,6 +11,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/v1/manufacturing/orders")
 @RequiredArgsConstructor
@@ -90,6 +92,33 @@ public class ManufacturingOrderController {
                         formulaCode,
                         pageable
                 )
+        );
+    }
+
+    @GetMapping("/{orderNumber}")
+    public ApiResponse<ManufacturingOrderResponse> findByOrderNumber(
+            @PathVariable("orderNumber") String orderNumber
+    ) {
+        return ApiResponse.ok(
+                manufacturingOrderService.findByOrderNumber(orderNumber)
+        );
+    }
+
+    @GetMapping("/{orderNumber}/inputs")
+    public ApiResponse<List<ManufacturingOrderInputResponse>> findInputs(
+            @PathVariable("orderNumber") String orderNumber
+    ) {
+        return ApiResponse.ok(
+                manufacturingOrderService.findInputsByOrderNumber(orderNumber)
+        );
+    }
+
+    @GetMapping("/{orderNumber}/outputs")
+    public ApiResponse<List<ManufacturingOrderOutputResponse>> findOutputs(
+            @PathVariable("orderNumber") String orderNumber
+    ) {
+        return ApiResponse.ok(
+                manufacturingOrderService.findOutputsByOrderNumber(orderNumber)
         );
     }
 

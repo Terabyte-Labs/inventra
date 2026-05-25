@@ -30,6 +30,7 @@ import mx.terabyte.labs.inventra.catalog.product.ProductEntity;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -472,6 +473,104 @@ public class ManufacturingOrderService {
                 order.getCreatedAt(),
                 order.getStartedAt(),
                 order.getCompletedAt()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public ManufacturingOrderResponse findByOrderNumber(String orderNumber) {
+
+        ManufacturingOrderEntity order = manufacturingOrderRepository
+                .findByOrderNumber(orderNumber)
+                .orElseThrow(() -> new BusinessException(
+                        "MANUFACTURING_ORDER_NOT_FOUND",
+                        "Manufacturing order not found: " + orderNumber
+                ));
+
+        return toResponse(order);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ManufacturingOrderInputResponse> findInputsByOrderNumber(
+            String orderNumber
+    ) {
+        ManufacturingOrderEntity order = manufacturingOrderRepository
+                .findByOrderNumber(orderNumber)
+                .orElseThrow(() -> new BusinessException(
+                        "MANUFACTURING_ORDER_NOT_FOUND",
+                        "Manufacturing order not found: " + orderNumber
+                ));
+
+        return manufacturingOrderInputRepository
+                .findByManufacturingOrderId(order.getId())
+                .stream()
+                .map(this::toInputResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ManufacturingOrderOutputResponse> findOutputsByOrderNumber(
+            String orderNumber
+    ) {
+        ManufacturingOrderEntity order = manufacturingOrderRepository
+                .findByOrderNumber(orderNumber)
+                .orElseThrow(() -> new BusinessException(
+                        "MANUFACTURING_ORDER_NOT_FOUND",
+                        "Manufacturing order not found: " + orderNumber
+                ));
+
+        return manufacturingOrderOutputRepository
+                .findByManufacturingOrderId(order.getId())
+                .stream()
+                .map(this::toOutputResponse)
+                .toList();
+    }
+
+    private ManufacturingOrderInputResponse toInputResponse(
+            ManufacturingOrderInputEntity input
+    ) {
+        InventoryMovementEntity movement = input.getInventoryMovement();
+
+        return new ManufacturingOrderInputResponse(
+                input.getId(),
+                input.getProduct().getSku(),
+                input.getProduct().getName(),
+                movement != null && movement.getProductLot() != null
+                        ? movement.getProductLot().getLotNumber()
+                        : null,
+                input.getPlannedQuantity(),
+                input.getActualQuantity(),
+                movement != null ? movement.getId() : null,
+                movement != null ? movement.getMovementType().name() : null,
+                movement != null ? movement.getBeforeQuantity() : null,
+                movement != null ? movement.getAfterQuantity() : null,
+                movement != null && movement.getCreatedBy() != null
+                        ? movement.getCreatedBy().getUsername()
+                        : null,
+                movement != null ? movement.getCreatedAt() : null
+        );
+    }
+
+    private ManufacturingOrderOutputResponse toOutputResponse(
+            ManufacturingOrderOutputEntity output
+    ) {
+        InventoryMovementEntity movement = output.getInventoryMovement();
+
+        return new ManufacturingOrderOutputResponse(
+                output.getId(),
+                output.getProduct().getSku(),
+                output.getProduct().getName(),
+                movement != null && movement.getProductLot() != null
+                        ? movement.getProductLot().getLotNumber()
+                        : null,
+                output.getQuantity(),
+                movement != null ? movement.getId() : null,
+                movement != null ? movement.getMovementType().name() : null,
+                movement != null ? movement.getBeforeQuantity() : null,
+                movement != null ? movement.getAfterQuantity() : null,
+                movement != null && movement.getCreatedBy() != null
+                        ? movement.getCreatedBy().getUsername()
+                        : null,
+                movement != null ? movement.getCreatedAt() : null
         );
     }
 
