@@ -13,7 +13,7 @@ public record ReceiveMaterialRequest(
         String sku,
 
         @NotBlank
-        String supplierName,
+        String supplierCode,
 
         @NotBlank
         String lotNumber,

@@ -9,6 +9,7 @@ import mx.terabyte.labs.inventra.catalog.product.barcode.ProductBarcodeEntity;
 import mx.terabyte.labs.inventra.catalog.product.barcode.ProductBarcodeRepository;
 import mx.terabyte.labs.inventra.catalog.supplier.SupplierEntity;
 import mx.terabyte.labs.inventra.catalog.supplier.SupplierRepository;
+import mx.terabyte.labs.inventra.catalog.unit.UnitOfMeasureEntity;
 import mx.terabyte.labs.inventra.common.enums.MovementType;
 import mx.terabyte.labs.inventra.common.exception.BusinessException;
 import mx.terabyte.labs.inventra.inventory.lot.ProductLotEntity;
@@ -50,8 +51,11 @@ public class MaterialReceivingService {
                         "Product not found for SKU: " + request.sku()
                 ));
 
-        SupplierEntity supplier = supplierRepository.findByName(request.supplierName())
-                .orElseGet(() -> createSupplier(request.supplierName()));
+        SupplierEntity supplier = supplierRepository.findByCode(request.supplierCode())
+                .orElseThrow(() -> new BusinessException(
+                        "SUPPLIER_NOT_FOUND",
+                        "Supplier not found for code: " + request.supplierCode()
+                ));
 
         WarehouseEntity warehouse = warehouseRepository.findByCode(request.warehouseCode())
                 .orElseThrow(() -> new BusinessException(
@@ -59,21 +63,21 @@ public class MaterialReceivingService {
                         "Warehouse not found for code: " + request.warehouseCode()
                 ));
 
-        productLotRepository.findByProductIdAndLotNumber(
-                product.getId(),
-                request.lotNumber()
-        ).ifPresent(existing -> {
-            throw new BusinessException(
-                    "LOT_ALREADY_EXISTS",
-                    "Lot already exists for product SKU: " + request.sku()
-            );
-        });
-
-        ProductLotEntity lot = createLot(
-                request,
-                product,
-                supplier
-        );
+        ProductLotEntity lot = productLotRepository
+                .findByProductIdAndLotNumber(
+                        product.getId(),
+                        request.lotNumber()
+                )
+                .map(existingLot -> validateExistingLot(
+                        existingLot,
+                        supplier,
+                        request
+                ))
+                .orElseGet(() -> createLot(
+                        request,
+                        product,
+                        supplier
+                ));
 
         if (request.barcode() != null && !request.barcode().isBlank()) {
             createBarcode(product, request.barcode());
@@ -109,6 +113,12 @@ public class MaterialReceivingService {
         movement.setCreatedAt(LocalDateTime.now());
         movement.setCreatedBy(currentUSer);
 
+        UnitOfMeasureEntity inventoryUnit = product.getUnitOfMeasure();
+        movement.setRequestedQuantity(request.quantity());
+        movement.setRequestedUnitOfMeasure(inventoryUnit);
+        movement.setQuantity(request.quantity());
+        movement.setUnitOfMeasure(inventoryUnit);
+
         inventoryMovementRepository.save(movement);
 
         return new ReceiveMaterialResponse(
@@ -121,18 +131,6 @@ public class MaterialReceivingService {
                 after,
                 warehouse.getCode()
         );
-    }
-
-    private SupplierEntity createSupplier(String name) {
-
-        SupplierEntity supplier = new SupplierEntity();
-
-        supplier.setId(UUID.randomUUID());
-        supplier.setName(name);
-        supplier.setActive(true);
-        supplier.setCreatedAt(LocalDateTime.now());
-
-        return supplierRepository.save(supplier);
     }
 
     private ProductLotEntity createLot(
@@ -196,5 +194,29 @@ public class MaterialReceivingService {
         stock.setCreatedAt(LocalDateTime.now());
 
         return stockBalanceRepository.save(stock);
+    }
+
+    private ProductLotEntity validateExistingLot(
+            ProductLotEntity existingLot,
+            SupplierEntity supplier,
+            ReceiveMaterialRequest request
+    ) {
+        if (existingLot.getSupplier() == null) {
+            throw new BusinessException(
+                    "LOT_WITHOUT_SUPPLIER",
+                    "Existing lot does not have supplier assigned: " + request.lotNumber()
+            );
+        }
+
+        if (!existingLot.getSupplier().getId().equals(supplier.getId())) {
+            throw new BusinessException(
+                    "LOT_SUPPLIER_MISMATCH",
+                    "Lot already exists for product SKU: "
+                            + request.sku()
+                            + " but belongs to another supplier"
+            );
+        }
+
+        return existingLot;
     }
 }

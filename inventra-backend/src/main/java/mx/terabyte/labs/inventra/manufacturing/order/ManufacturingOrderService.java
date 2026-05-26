@@ -5,6 +5,9 @@ import lombok.extern.slf4j.Slf4j;
 import mx.terabyte.labs.inventra.auth.CurrentUserService;
 import mx.terabyte.labs.inventra.auth.user.UserEntity;
 import mx.terabyte.labs.inventra.catalog.product.ProductRepository;
+import mx.terabyte.labs.inventra.catalog.unit.UnitConversionService;
+import mx.terabyte.labs.inventra.catalog.unit.UnitOfMeasureEntity;
+import mx.terabyte.labs.inventra.catalog.unit.UnitOfMeasureRepository;
 import mx.terabyte.labs.inventra.common.enums.ManufacturingOrderStatus;
 import mx.terabyte.labs.inventra.common.enums.MovementType;
 import mx.terabyte.labs.inventra.common.enums.ReferenceType;
@@ -49,6 +52,8 @@ public class ManufacturingOrderService {
     private final ProductRepository productRepository;
     private final ProductLotRepository productLotRepository;
     private final CurrentUserService currentUserService;
+    private final UnitOfMeasureRepository unitOfMeasureRepository;
+    private final UnitConversionService unitConversionService;
 
 
     @Transactional
@@ -188,6 +193,21 @@ public class ManufacturingOrderService {
                         "Product not found for SKU: " + request.productSku()
                 ));
 
+        UnitOfMeasureEntity requestedUnit = unitOfMeasureRepository
+                .findByCode(request.unitOfMeasureCode())
+                .orElseThrow(() -> new BusinessException(
+                        "UNIT_OF_MEASURE_NOT_FOUND",
+                        "Unit of measure not found for code: " + request.unitOfMeasureCode()
+                ));
+
+        UnitOfMeasureEntity inventoryUnit = product.getUnitOfMeasure();
+
+        BigDecimal inventoryQuantity = unitConversionService.convert(
+                request.quantity(),
+                requestedUnit,
+                inventoryUnit
+        );
+
         ProductLotEntity lot = productLotRepository
                 .findByProductIdAndLotNumber(
                         product.getId(),
@@ -210,15 +230,14 @@ public class ManufacturingOrderService {
                 ));
 
         BigDecimal before = stock.getQuantity();
+        BigDecimal after = before.subtract(inventoryQuantity);
 
-        if (before.compareTo(request.quantity()) < 0) {
+        if (after.compareTo(BigDecimal.ZERO) < 0) {
             throw new BusinessException(
                     "INSUFFICIENT_STOCK",
-                    "Insufficient stock for SKU: " + request.productSku()
+                    "Insufficient stock for product: " + request.productSku()
             );
         }
-
-        BigDecimal after = before.subtract(request.quantity());
 
         stock.setQuantity(after);
         stock.setUpdatedAt(LocalDateTime.now());
@@ -240,6 +259,12 @@ public class ManufacturingOrderService {
         movement.setCreatedAt(LocalDateTime.now());
         movement.setProductLot(lot);
         movement.setCreatedBy(currentUser);
+        movement.setRequestedQuantity(request.quantity());
+        movement.setRequestedUnitOfMeasure(requestedUnit);
+        movement.setQuantity(inventoryQuantity);
+        movement.setUnitOfMeasure(inventoryUnit);
+        movement.setBeforeQuantity(before);
+        movement.setAfterQuantity(after);
 
         inventoryMovementRepository.save(movement);
 
@@ -251,6 +276,10 @@ public class ManufacturingOrderService {
         input.setPlannedQuantity(request.quantity());
         input.setActualQuantity(request.quantity());
         input.setInventoryMovement(movement);
+        input.setPlannedQuantity(request.quantity());
+        input.setPlannedUnitOfMeasure(requestedUnit);
+        input.setActualQuantity(request.quantity());
+        input.setActualUnitOfMeasure(requestedUnit);
 
         manufacturingOrderInputRepository.save(input);
 
@@ -290,6 +319,21 @@ public class ManufacturingOrderService {
                         "Product not found for SKU: " + request.productSku()
                 ));
 
+        UnitOfMeasureEntity requestedUnit = unitOfMeasureRepository
+                .findByCode(request.unitOfMeasureCode())
+                .orElseThrow(() -> new BusinessException(
+                        "UNIT_OF_MEASURE_NOT_FOUND",
+                        "Unit of measure not found for code: " + request.unitOfMeasureCode()
+                ));
+
+        UnitOfMeasureEntity inventoryUnit = product.getUnitOfMeasure();
+
+        BigDecimal inventoryQuantity = unitConversionService.convert(
+                request.quantity(),
+                requestedUnit,
+                inventoryUnit
+        );
+
         StockBalanceEntity stock = stockBalanceRepository
                 .findByProductIdAndWarehouseId(
                         product.getId(),
@@ -306,7 +350,7 @@ public class ManufacturingOrderService {
                 });
 
         BigDecimal before = stock.getQuantity();
-        BigDecimal after = before.add(request.quantity());
+        BigDecimal after = before.add(inventoryQuantity);
 
         stock.setQuantity(after);
         stock.setUpdatedAt(LocalDateTime.now());
@@ -340,6 +384,14 @@ public class ManufacturingOrderService {
         movement.setCreatedAt(LocalDateTime.now());
         movement.setCreatedBy(currentUser);
         movement.setProductLot(lot);
+        movement.setRequestedQuantity(request.quantity());
+        movement.setRequestedUnitOfMeasure(requestedUnit);
+
+        movement.setQuantity(inventoryQuantity);
+        movement.setUnitOfMeasure(inventoryUnit);
+
+        movement.setBeforeQuantity(before);
+        movement.setAfterQuantity(after);
 
         inventoryMovementRepository.save(movement);
 
@@ -350,6 +402,8 @@ public class ManufacturingOrderService {
         output.setProduct(product);
         output.setQuantity(request.quantity());
         output.setInventoryMovement(movement);
+        output.setQuantity(request.quantity());
+        output.setUnitOfMeasure(requestedUnit);
 
         manufacturingOrderOutputRepository.save(output);
 
@@ -537,10 +591,19 @@ public class ManufacturingOrderService {
                 movement != null && movement.getProductLot() != null
                         ? movement.getProductLot().getLotNumber()
                         : null,
+
                 input.getPlannedQuantity(),
+                input.getPlannedUnitOfMeasure().getCode(),
+                input.getPlannedUnitOfMeasure().getName(),
+
                 input.getActualQuantity(),
+                input.getActualUnitOfMeasure().getCode(),
+                input.getActualUnitOfMeasure().getName(),
+
                 movement != null ? movement.getId() : null,
                 movement != null ? movement.getMovementType().name() : null,
+                movement != null ? movement.getQuantity() : null,
+                movement != null ? movement.getUnitOfMeasure().getCode() : null,
                 movement != null ? movement.getBeforeQuantity() : null,
                 movement != null ? movement.getAfterQuantity() : null,
                 movement != null && movement.getCreatedBy() != null
@@ -562,9 +625,15 @@ public class ManufacturingOrderService {
                 movement != null && movement.getProductLot() != null
                         ? movement.getProductLot().getLotNumber()
                         : null,
+
                 output.getQuantity(),
+                output.getUnitOfMeasure().getCode(),
+                output.getUnitOfMeasure().getName(),
+
                 movement != null ? movement.getId() : null,
                 movement != null ? movement.getMovementType().name() : null,
+                movement != null ? movement.getQuantity() : null,
+                movement != null ? movement.getUnitOfMeasure().getCode() : null,
                 movement != null ? movement.getBeforeQuantity() : null,
                 movement != null ? movement.getAfterQuantity() : null,
                 movement != null && movement.getCreatedBy() != null

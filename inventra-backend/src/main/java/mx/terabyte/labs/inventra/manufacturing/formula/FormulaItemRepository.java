@@ -8,5 +8,6 @@ import java.util.UUID;
 public interface FormulaItemRepository extends JpaRepository<FormulaItemEntity, UUID> {
 
     List<FormulaItemEntity> findByFormulaIdOrderByLineOrderAsc(UUID formulaId);
+    List<FormulaItemEntity> findByFormulaId(UUID formulaId);
 
 }

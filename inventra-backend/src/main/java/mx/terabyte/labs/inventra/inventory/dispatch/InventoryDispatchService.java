@@ -6,6 +6,7 @@ import mx.terabyte.labs.inventra.auth.CurrentUserService;
 import mx.terabyte.labs.inventra.auth.user.UserEntity;
 import mx.terabyte.labs.inventra.catalog.product.ProductEntity;
 import mx.terabyte.labs.inventra.catalog.product.ProductRepository;
+import mx.terabyte.labs.inventra.catalog.unit.UnitOfMeasureEntity;
 import mx.terabyte.labs.inventra.common.enums.MovementType;
 import mx.terabyte.labs.inventra.common.exception.BusinessException;
 import mx.terabyte.labs.inventra.inventory.dispatch.dto.DispatchInventoryRequest;
@@ -98,6 +99,12 @@ public class InventoryDispatchService {
         movement.setNotes(request.notes());
         movement.setCreatedAt(LocalDateTime.now());
         movement.setCreatedBy(currentUser);
+
+        UnitOfMeasureEntity inventoryUnit = product.getUnitOfMeasure();
+        movement.setRequestedQuantity(request.quantity());
+        movement.setRequestedUnitOfMeasure(inventoryUnit);
+        movement.setQuantity(request.quantity());
+        movement.setUnitOfMeasure(inventoryUnit);
 
         inventoryMovementRepository.save(movement);
 

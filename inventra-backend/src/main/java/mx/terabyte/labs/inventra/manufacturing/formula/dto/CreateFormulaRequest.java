@@ -10,26 +10,12 @@ import java.math.BigDecimal;
 import java.util.List;
 
 public record CreateFormulaRequest(
-
-        @NotBlank
-        String code,
-
-        @NotBlank
-        String name,
-
-        @NotBlank
-        String outputProductSku,
-
-        @NotNull
-        @Positive
-        BigDecimal outputQuantity,
-
-        @NotNull
-        @Positive
-        Integer version,
-
-        @NotEmpty
-        List<@Valid CreateFormulaItemRequest> items
-
+        @NotBlank String code,
+        @NotNull Integer version,
+        @NotBlank String name,
+        @NotBlank String outputProductSku,
+        @NotNull @Positive BigDecimal outputQuantity,
+        @NotBlank String outputUnitOfMeasureCode,
+        @NotEmpty List<CreateFormulaItemRequest> items
 ) {
 }

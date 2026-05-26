@@ -4,14 +4,18 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import mx.terabyte.labs.inventra.catalog.product.ProductEntity;
 import mx.terabyte.labs.inventra.catalog.product.ProductRepository;
+import mx.terabyte.labs.inventra.catalog.unit.UnitOfMeasureEntity;
+import mx.terabyte.labs.inventra.catalog.unit.UnitOfMeasureRepository;
 import mx.terabyte.labs.inventra.common.exception.BusinessException;
-import mx.terabyte.labs.inventra.manufacturing.formula.dto.CreateFormulaItemRequest;
-import mx.terabyte.labs.inventra.manufacturing.formula.dto.CreateFormulaRequest;
-import mx.terabyte.labs.inventra.manufacturing.formula.dto.CreateFormulaResponse;
+import mx.terabyte.labs.inventra.manufacturing.formula.dto.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -22,9 +26,10 @@ public class FormulaService {
     private final FormulaRepository formulaRepository;
     private final FormulaItemRepository formulaItemRepository;
     private final ProductRepository productRepository;
+    private final UnitOfMeasureRepository unitOfMeasureRepository;
 
     @Transactional
-    public CreateFormulaResponse create(
+    public FormulaDetailResponse create(
             CreateFormulaRequest request
     ) {
         log.info("Creating new formula: code={}, version={}, outputProductSku={}",
@@ -50,16 +55,24 @@ public class FormulaService {
                     );
                 });
 
+        UnitOfMeasureEntity outputUnit = unitOfMeasureRepository
+                .findByCode(request.outputUnitOfMeasureCode())
+                .orElseThrow(() -> new BusinessException(
+                        "UNIT_OF_MEASURE_NOT_FOUND",
+                        "Unit of measure not found for code: " + request.outputUnitOfMeasureCode()
+                ));
+
         FormulaEntity formula = new FormulaEntity();
 
         formula.setId(UUID.randomUUID());
         formula.setCode(request.code());
+        formula.setVersion(request.version());
         formula.setName(request.name());
         formula.setProduct(outputProduct);
         formula.setOutputQuantity(request.outputQuantity());
-        formula.setVersion(request.version());
         formula.setActive(true);
         formula.setCreatedAt(LocalDateTime.now());
+        formula.setOutputUnitOfMeasure(outputUnit);
 
         formulaRepository.save(formula);
 
@@ -74,26 +87,164 @@ public class FormulaService {
                             "Raw material not found: " + itemRequest.productSku()
                     ));
 
+            UnitOfMeasureEntity itemUnit = unitOfMeasureRepository
+                    .findByCode(itemRequest.unitOfMeasureCode())
+                    .orElseThrow(() -> new BusinessException(
+                            "UNIT_OF_MEASURE_NOT_FOUND",
+                            "Unit of measure not found for code: " + itemRequest.unitOfMeasureCode()
+                    ));
+
             FormulaItemEntity item = new FormulaItemEntity();
 
             item.setId(UUID.randomUUID());
             item.setFormula(formula);
             item.setProduct(rawMaterial);
             item.setQuantity(itemRequest.quantity());
+            item.setUnitOfMeasure(itemUnit);
             item.setLineOrder(line++);
             item.setNotes(itemRequest.notes());
 
             formulaItemRepository.save(item);
         }
 
-        return new CreateFormulaResponse(
+        return findByCodeAndVersion(formula.getCode(), formula.getVersion());
+    }
+
+    @Transactional(readOnly = true)
+    public Page<FormulaSearchResponse> findAll(
+            String code,
+            String name,
+            String outputProductSku,
+            Pageable pageable
+    ) {
+        Specification<FormulaEntity> spec = Specification.unrestricted();
+
+        if (code != null && !code.isBlank()) {
+            spec = spec.and((root, query, cb) ->
+                    cb.like(
+                            cb.lower(root.get("code")),
+                            "%" + code.toLowerCase() + "%"
+                    )
+            );
+        }
+
+        if (name != null && !name.isBlank()) {
+            spec = spec.and((root, query, cb) ->
+                    cb.like(
+                            cb.lower(root.get("name")),
+                            "%" + name.toLowerCase() + "%"
+                    )
+            );
+        }
+
+        if (outputProductSku != null && !outputProductSku.isBlank()) {
+            spec = spec.and((root, query, cb) ->
+                    cb.like(
+                            cb.lower(root.get("product").get("sku")),
+                            "%" + outputProductSku.toLowerCase() + "%"
+                    )
+            );
+        }
+
+        return formulaRepository.findAll(spec, pageable)
+                .map(this::toSearchResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public FormulaDetailResponse findByCodeAndVersion(
+            String code,
+            Integer version
+    ) {
+        FormulaEntity formula = formulaRepository
+                .findByCodeAndVersion(code, version)
+                .orElseThrow(() -> new BusinessException(
+                        "FORMULA_NOT_FOUND",
+                        "Formula not found for code: " + code
+                                + " and version: " + version
+                ));
+
+        List<FormulaItemResponse> items = formulaItemRepository
+                .findByFormulaId(formula.getId())
+                .stream()
+                .map(this::toItemResponse)
+                .toList();
+
+        ProductEntity outputProduct = formula.getProduct();
+
+        return new FormulaDetailResponse(
                 formula.getId(),
                 formula.getCode(),
+                formula.getVersion(),
                 formula.getName(),
+                formula.getActive(),
+
                 outputProduct.getSku(),
+                outputProduct.getName(),
+                outputProduct.getProductType().name(),
+                outputProduct.getCategory() != null
+                        ? outputProduct.getCategory().getName()
+                        : null,
+
                 formula.getOutputQuantity(),
-                request.items().size(),
-                formula.getVersion()
+                formula.getOutputUnitOfMeasure().getCode(),
+                formula.getOutputUnitOfMeasure().getName(),
+
+                outputProduct.getUnitOfMeasure().getCode(),
+                outputProduct.getUnitOfMeasure().getName(),
+
+                items.size(),
+                items,
+
+                formula.getCreatedAt()
+        );
+    }
+
+    private FormulaSearchResponse toSearchResponse(FormulaEntity formula) {
+        Integer itemsCount = formulaItemRepository
+                .findByFormulaId(formula.getId())
+                .size();
+
+        ProductEntity outputProduct = formula.getProduct();
+
+        return new FormulaSearchResponse(
+                formula.getId(),
+                formula.getCode(),
+                formula.getVersion(),
+                formula.getName(),
+                formula.getActive(),
+
+                outputProduct.getSku(),
+                outputProduct.getName(),
+                outputProduct.getProductType().name(),
+                outputProduct.getCategory() != null
+                        ? outputProduct.getCategory().getName()
+                        : null,
+
+                formula.getOutputQuantity(),
+                formula.getOutputUnitOfMeasure().getCode(),
+                formula.getOutputUnitOfMeasure().getName(),
+
+                itemsCount
+        );
+    }
+
+
+    private FormulaItemResponse toItemResponse(FormulaItemEntity item) {
+        ProductEntity product = item.getProduct();
+
+        return new FormulaItemResponse(
+                item.getId(),
+                product.getSku(),
+                product.getName(),
+                product.getProductType().name(),
+                product.getCategory() != null ? product.getCategory().getName() : null,
+
+                item.getQuantity(),
+                item.getUnitOfMeasure().getCode(),
+                item.getUnitOfMeasure().getName(),
+
+                product.getUnitOfMeasure().getCode(),
+                product.getUnitOfMeasure().getName()
         );
     }
 }

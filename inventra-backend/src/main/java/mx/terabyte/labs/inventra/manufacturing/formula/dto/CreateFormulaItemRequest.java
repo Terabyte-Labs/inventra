@@ -15,6 +15,9 @@ public record CreateFormulaItemRequest(
         @Positive
         BigDecimal quantity,
 
+        @NotBlank
+        String unitOfMeasureCode,
+
         String notes
 
 ) {

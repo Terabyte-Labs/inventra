@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import mx.terabyte.labs.inventra.catalog.product.ProductEntity;
+import mx.terabyte.labs.inventra.catalog.unit.UnitOfMeasureEntity;
 import mx.terabyte.labs.inventra.inventory.movement.InventoryMovementEntity;
 
 import java.math.BigDecimal;
@@ -35,4 +36,12 @@ public class ManufacturingOrderInputEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "inventory_movement_id")
     private InventoryMovementEntity inventoryMovement;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "planned_unit_of_measure_id", nullable = false)
+    private UnitOfMeasureEntity plannedUnitOfMeasure;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "actual_unit_of_measure_id", nullable = false)
+    private UnitOfMeasureEntity actualUnitOfMeasure;
 }

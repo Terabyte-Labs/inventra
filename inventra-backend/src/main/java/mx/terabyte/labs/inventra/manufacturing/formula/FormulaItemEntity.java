@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import mx.terabyte.labs.inventra.catalog.product.ProductEntity;
+import mx.terabyte.labs.inventra.catalog.unit.UnitOfMeasureEntity;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -33,4 +34,8 @@ public class FormulaItemEntity {
 
     @Column(columnDefinition = "TEXT")
     private String notes;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "unit_of_measure_id", nullable = false)
+    private UnitOfMeasureEntity unitOfMeasure;
 }

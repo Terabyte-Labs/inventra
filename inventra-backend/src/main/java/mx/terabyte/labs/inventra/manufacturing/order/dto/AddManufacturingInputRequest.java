@@ -7,18 +7,18 @@ import jakarta.validation.constraints.Positive;
 import java.math.BigDecimal;
 
 public record AddManufacturingInputRequest(
-
         @NotBlank
         String productSku,
+
+        String lotNumber,
 
         @NotNull
         @Positive
         BigDecimal quantity,
 
         @NotBlank
-        String lotNumber,
+        String unitOfMeasureCode,
 
         String notes
-
 ) {
 }

@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 import mx.terabyte.labs.inventra.auth.user.UserEntity;
 import mx.terabyte.labs.inventra.catalog.product.ProductEntity;
+import mx.terabyte.labs.inventra.catalog.unit.UnitOfMeasureEntity;
 import mx.terabyte.labs.inventra.common.enums.MovementType;
 import mx.terabyte.labs.inventra.common.enums.ReferenceType;
 import mx.terabyte.labs.inventra.inventory.lot.ProductLotEntity;
@@ -70,4 +71,15 @@ public class InventoryMovementEntity {
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "unit_of_measure_id", nullable = false)
+    private UnitOfMeasureEntity unitOfMeasure;
+
+    @Column(name = "requested_quantity", nullable = false, precision = 19, scale = 6)
+    private BigDecimal requestedQuantity;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "requested_unit_of_measure_id", nullable = false)
+    private UnitOfMeasureEntity requestedUnitOfMeasure;
 }

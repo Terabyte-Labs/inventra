@@ -21,5 +21,6 @@ public record ReceiveMaterialResponse(
 
         String warehouseCode
 
+
 ) {
 }
