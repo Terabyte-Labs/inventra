@@ -14,11 +14,16 @@ import java.util.List;
 public class InventoryMovementService {
 
     private final InventoryMovementRepository repository;
+    private final InventoryMovementMapper mapper;
 
     @Transactional(readOnly = true)
     public List<InventoryMovementResponse> findAll() {
         log.debug("Fetching all inventory movements");
-        return repository.findAllProjected();
+
+        return repository.findAllWithDetails()
+                .stream()
+                .map(mapper::toResponse)
+                .toList();
     }
 
 }

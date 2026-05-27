@@ -15,7 +15,9 @@ import mx.terabyte.labs.inventra.common.exception.BusinessException;
 import mx.terabyte.labs.inventra.inventory.lot.ProductLotEntity;
 import mx.terabyte.labs.inventra.inventory.lot.ProductLotRepository;
 import mx.terabyte.labs.inventra.inventory.movement.InventoryMovementEntity;
+import mx.terabyte.labs.inventra.inventory.movement.InventoryMovementMapper;
 import mx.terabyte.labs.inventra.inventory.movement.InventoryMovementRepository;
+import mx.terabyte.labs.inventra.inventory.movement.dto.InventoryMovementResponse;
 import mx.terabyte.labs.inventra.inventory.stock.StockBalanceEntity;
 import mx.terabyte.labs.inventra.inventory.stock.StockBalanceRepository;
 import mx.terabyte.labs.inventra.inventory.warehouse.WarehouseEntity;
@@ -54,6 +56,7 @@ public class ManufacturingOrderService {
     private final CurrentUserService currentUserService;
     private final UnitOfMeasureRepository unitOfMeasureRepository;
     private final UnitConversionService unitConversionService;
+    private final InventoryMovementMapper inventoryMovementMapper;
 
 
     @Transactional
@@ -641,6 +644,24 @@ public class ManufacturingOrderService {
                         : null,
                 movement != null ? movement.getCreatedAt() : null
         );
+    }
+
+    @Transactional(readOnly = true)
+    public List<InventoryMovementResponse> findMovementsByOrderNumber(
+            String orderNumber
+    ) {
+        ManufacturingOrderEntity order = manufacturingOrderRepository
+                .findByOrderNumber(orderNumber)
+                .orElseThrow(() -> new BusinessException(
+                        "MANUFACTURING_ORDER_NOT_FOUND",
+                        "Manufacturing order not found: " + orderNumber
+                ));
+
+        return inventoryMovementRepository
+                .findByManufacturingOrderIdWithDetails(order.getId())
+                .stream()
+                .map(inventoryMovementMapper::toResponse)
+                .toList();
     }
 
 }

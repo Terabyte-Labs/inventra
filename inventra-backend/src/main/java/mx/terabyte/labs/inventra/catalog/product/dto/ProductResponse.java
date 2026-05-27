@@ -11,7 +11,10 @@ public record ProductResponse(
         String name,
         String description,
         ProductType productType,
+        String categoryName,
         BigDecimal minStock,
-        Boolean active
+        Boolean active,
+        String unitOfMeasureCode,
+        String unitOfMeasureName
 ) {
 }

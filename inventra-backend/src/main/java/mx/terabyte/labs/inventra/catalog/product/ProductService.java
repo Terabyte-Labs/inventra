@@ -44,15 +44,18 @@ public class ProductService {
                 .toList();
     }
 
-    private ProductResponse toResponse(ProductEntity entity) {
+    private ProductResponse toResponse(ProductEntity product) {
         return new ProductResponse(
-                entity.getId(),
-                entity.getSku(),
-                entity.getName(),
-                entity.getDescription(),
-                entity.getProductType(),
-                entity.getMinStock(),
-                entity.getActive()
+                product.getId(),
+                product.getSku(),
+                product.getName(),
+                product.getDescription(),
+                product.getProductType(),
+                product.getCategory() != null ? product.getCategory().getName() : null,
+                product.getMinStock(),
+                product.getActive(),
+                product.getUnitOfMeasure().getCode(),
+                product.getUnitOfMeasure().getName()
         );
     }
 
@@ -234,7 +237,10 @@ public class ProductService {
                 entity.getMinStock(),
                 entity.getActive(),
                 entity.getCategory() != null ? entity.getCategory().getId() : null,
-                entity.getCategory() != null ? entity.getCategory().getName() : null
+                entity.getCategory() != null ? entity.getCategory().getName() : null,
+                entity.getUnitOfMeasure() != null ? entity.getUnitOfMeasure().getCode() : null,
+                entity.getUnitOfMeasure() != null ? entity.getUnitOfMeasure().getName() : null
         );
     }
+
 }

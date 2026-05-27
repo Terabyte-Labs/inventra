@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import mx.terabyte.labs.inventra.common.api.ApiResponse;
 import mx.terabyte.labs.inventra.common.enums.ManufacturingOrderStatus;
+import mx.terabyte.labs.inventra.inventory.movement.dto.InventoryMovementResponse;
 import mx.terabyte.labs.inventra.manufacturing.order.dto.*;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -119,6 +120,15 @@ public class ManufacturingOrderController {
     ) {
         return ApiResponse.ok(
                 manufacturingOrderService.findOutputsByOrderNumber(orderNumber)
+        );
+    }
+
+    @GetMapping("/{orderNumber}/movements")
+    public ApiResponse<List<InventoryMovementResponse>> findMovements(
+            @PathVariable("orderNumber") String orderNumber
+    ) {
+        return ApiResponse.ok(
+                manufacturingOrderService.findMovementsByOrderNumber(orderNumber)
         );
     }
 

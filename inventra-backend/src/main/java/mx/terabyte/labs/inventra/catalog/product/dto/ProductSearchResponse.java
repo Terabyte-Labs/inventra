@@ -1,5 +1,6 @@
 package mx.terabyte.labs.inventra.catalog.product.dto;
 
+
 import mx.terabyte.labs.inventra.common.enums.ProductType;
 
 import java.math.BigDecimal;
@@ -14,6 +15,8 @@ public record ProductSearchResponse(
         BigDecimal minStock,
         Boolean active,
         UUID categoryId,
-        String categoryName
+        String categoryName,
+        String unitOfMeasureCode,
+        String unitOfMeasureName
 ) {
 }
