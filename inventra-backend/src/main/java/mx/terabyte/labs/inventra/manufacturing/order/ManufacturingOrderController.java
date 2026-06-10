@@ -68,7 +68,6 @@ public class ManufacturingOrderController {
         );
     }
 
-    @GetMapping
     public ApiResponse<Page<ManufacturingOrderResponse>> findAll(
             @RequestParam(name = "status", required = false)
             ManufacturingOrderStatus status,
