@@ -1,6 +1,8 @@
 package mx.terabyte.labs.inventra.inventory.receiving;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import mx.terabyte.labs.inventra.auth.CurrentUserService;
 import mx.terabyte.labs.inventra.auth.user.UserEntity;
 import mx.terabyte.labs.inventra.catalog.product.ProductEntity;
@@ -31,6 +33,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class MaterialReceivingService {
 
     private final ProductRepository productRepository;
@@ -44,6 +47,8 @@ public class MaterialReceivingService {
 
     @Transactional
     public ReceiveMaterialResponse receive(ReceiveMaterialRequest request) {
+        log.info("Processing material receipt: sku={}, quantity={}, lot={}, supplierCode={}, warehouseCode={}",
+                request.sku(), request.quantity(), request.lotNumber(), request.supplierCode(), request.warehouseCode());
 
         ProductEntity product = productRepository.findBySku(request.sku())
                 .orElseThrow(() -> new BusinessException(
@@ -121,6 +126,10 @@ public class MaterialReceivingService {
 
         inventoryMovementRepository.save(movement);
 
+        log.info("material.received sku={} productId={} lot={} lotId={} movementId={} quantity={} before={} after={} warehouse={} warehouseId={} recordedByUserId={} requestId={}",
+                product.getSku(), product.getId(), lot.getLotNumber(), lot.getId(), movement.getId(), request.quantity(), before, after,
+                warehouse.getCode(), warehouse.getId(), currentUSer != null ? currentUSer.getId() : "anonymous", MDC.get("requestId"));
+
         return new ReceiveMaterialResponse(
                 movement.getId(),
                 product.getSku(),
@@ -156,13 +165,22 @@ public class MaterialReceivingService {
         );
         lot.setCreatedAt(LocalDateTime.now());
 
-        return productLotRepository.save(lot);
+        ProductLotEntity saved = productLotRepository.save(lot);
+        try {
+            log.info("Created new product lot: sku={}, lotNumber={}, supplierId={}, lotId={}, requestId={}",
+                    product.getSku(), saved.getLotNumber(), supplier.getId(), saved.getId(), MDC.get("requestId"));
+        } catch (Exception ignored) {
+        }
+
+        return saved;
     }
 
     private void createBarcode(ProductEntity product, String barcode) {
 
         productBarcodeRepository.findByBarcode(barcode)
                 .ifPresent(existing -> {
+                    log.warn("Barcode duplicate detected: barcode={}, existingSku={}, newSku={}, requestId={}",
+                            barcode, existing.getProduct().getSku(), product.getSku(), MDC.get("requestId"));
                     throw new BusinessException(
                             "BARCODE_ALREADY_EXISTS",
                             "Barcode already exists: " + barcode
@@ -178,6 +196,10 @@ public class MaterialReceivingService {
         entity.setCreatedAt(LocalDateTime.now());
 
         productBarcodeRepository.save(entity);
+        try {
+            log.info("Barcode registered: sku={}, barcode={}, createdAt={}, requestId={}", product.getSku(), barcode, entity.getCreatedAt(), MDC.get("requestId"));
+        } catch (Exception ignored) {
+        }
     }
 
     private StockBalanceEntity createStock(

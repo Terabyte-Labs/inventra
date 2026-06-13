@@ -2,6 +2,7 @@ package mx.terabyte.labs.inventra.auth;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import mx.terabyte.labs.inventra.auth.dto.LoginRequest;
 import mx.terabyte.labs.inventra.auth.dto.LoginResponse;
 import mx.terabyte.labs.inventra.auth.user.UserEntity;
@@ -22,8 +23,9 @@ public class AuthService {
     private final JwtProperties jwtProperties;
 
     public LoginResponse login(LoginRequest request) {
-        log.info("Attempting user login for username: {}", request.username());
-        
+        // requestId and username will be provided by MDC via RequestIdFilter
+        log.info("Attempting user login: username={}", request.username());
+
         UserEntity user = userRepository.findByUsername(request.username())
                 .orElseThrow(() -> {
                     log.warn("Login attempt failed: user not found for username: {}", request.username());
@@ -34,7 +36,7 @@ public class AuthService {
                 });
 
         if (!Boolean.TRUE.equals(user.getActive())) {
-            log.warn("Login attempt failed: user account is disabled for username: {}", request.username());
+            log.warn("Login attempt failed: username={}, reason=USER_DISABLED, requestId={}", request.username(), MDC.get("requestId"));
             throw new BusinessException(
                     "USER_DISABLED",
                     "User is disabled"
@@ -47,7 +49,7 @@ public class AuthService {
         );
 
         if (!passwordMatches) {
-            log.warn("Login attempt failed: invalid password for username: {}", request.username());
+            log.warn("Login failed: username={}, reason=INVALID_PASSWORD, requestId={}", request.username(), MDC.get("requestId"));
             throw new BusinessException(
                     "INVALID_CREDENTIALS",
                     "Invalid username or password"
@@ -55,7 +57,9 @@ public class AuthService {
         }
 
         String token = jwtService.generateToken(user);
-        log.info("User successfully logged in: {}", request.username());
+        // Do not log token contents. Log user id and token TTL for auditing.
+        log.info("User login success: username={}, userId={}, expiresInSeconds={}, requestId={}",
+                request.username(), user.getId(), jwtProperties.expirationMinutes() * 60, MDC.get("requestId"));
 
         return new LoginResponse(
                 token,
