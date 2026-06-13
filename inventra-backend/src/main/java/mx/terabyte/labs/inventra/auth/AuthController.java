@@ -2,6 +2,8 @@ package mx.terabyte.labs.inventra.auth;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import mx.terabyte.labs.inventra.auth.dto.ChangePasswordRequest;
+import mx.terabyte.labs.inventra.auth.dto.ChangePasswordResponse;
 import mx.terabyte.labs.inventra.auth.dto.LoginRequest;
 import mx.terabyte.labs.inventra.auth.dto.LoginResponse;
 import mx.terabyte.labs.inventra.common.api.ApiResponse;
@@ -20,6 +22,15 @@ public class AuthController {
     ) {
         return ApiResponse.ok(
                 authService.login(request)
+        );
+    }
+
+    @PostMapping("/change-password")
+    public ApiResponse<ChangePasswordResponse> changePassword(
+            @Valid @RequestBody ChangePasswordRequest request
+    ) {
+        return ApiResponse.ok(
+                authService.changePassword(request)
         );
     }
 }
