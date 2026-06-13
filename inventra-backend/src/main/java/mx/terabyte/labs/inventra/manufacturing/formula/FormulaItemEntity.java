@@ -26,6 +26,10 @@ public class FormulaItemEntity {
     @JoinColumn(name = "product_id", nullable = false)
     private ProductEntity product;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "process_step_id")
+    private FormulaProcessStepEntity processStep;
+
     @Column(nullable = false, precision = 18, scale = 4)
     private BigDecimal quantity;
 

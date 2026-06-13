@@ -1,5 +1,6 @@
 package mx.terabyte.labs.inventra.catalog.producttype;
 
+import mx.terabyte.labs.inventra.catalog.product.dto.ProductTypeResponse;
 import mx.terabyte.labs.inventra.common.api.ApiResponse;
 import mx.terabyte.labs.inventra.common.enums.ProductType;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,9 +15,14 @@ import java.util.List;
 public class ProductTypeController {
 
     @GetMapping
-    public ApiResponse<List<ProductType>> findAll() {
+    public ApiResponse<List<ProductTypeResponse>> findAll() {
         return ApiResponse.ok(
-                Arrays.asList(ProductType.values())
+                Arrays.stream(ProductType.values())
+                        .map(type -> new ProductTypeResponse(
+                                type.getCode(),
+                                type.getDisplayName()
+                        ))
+                        .toList()
         );
     }
 }

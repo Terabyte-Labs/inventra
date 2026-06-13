@@ -27,6 +27,9 @@ public record FormulaDetailResponse(
         Integer itemsCount,
         List<FormulaItemResponse> items,
 
+        Integer processStepsCount,
+        List<FormulaProcessStepResponse> processSteps,
+
         LocalDateTime createdAt
 ) {
 }

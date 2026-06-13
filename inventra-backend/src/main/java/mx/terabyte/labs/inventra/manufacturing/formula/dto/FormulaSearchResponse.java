@@ -19,6 +19,7 @@ public record FormulaSearchResponse(
         String outputUnitOfMeasureCode,
         String outputUnitOfMeasureName,
 
-        Integer itemsCount
+        Integer itemsCount,
+        Integer processStepsCount
 ) {
 }

@@ -68,6 +68,7 @@ public class ManufacturingOrderController {
         );
     }
 
+    @GetMapping
     public ApiResponse<Page<ManufacturingOrderResponse>> findAll(
             @RequestParam(name = "status", required = false)
             ManufacturingOrderStatus status,
@@ -128,6 +129,15 @@ public class ManufacturingOrderController {
     ) {
         return ApiResponse.ok(
                 manufacturingOrderService.findMovementsByOrderNumber(orderNumber)
+        );
+    }
+
+    @GetMapping("/{orderNumber}/steps")
+    public ApiResponse<List<ManufacturingOrderStepResponse>> findSteps(
+            @PathVariable("orderNumber") String orderNumber
+    ) {
+        return ApiResponse.ok(
+                manufacturingOrderService.findStepsByOrderNumber(orderNumber)
         );
     }
 
