@@ -7,6 +7,9 @@ public record SupplierResponse(
         UUID id,
         String code,
         String name,
+        String contactName,
+        String email,
+        String phone,
         Boolean active,
         List<SupplierContactResponse> contacts
 ) {

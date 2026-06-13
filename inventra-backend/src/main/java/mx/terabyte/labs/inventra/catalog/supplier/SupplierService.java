@@ -61,7 +61,10 @@ public class SupplierService {
         supplier.setId(UUID.randomUUID());
         supplier.setCode(request.code());
         supplier.setName(request.name());
-        supplier.setActive(true);
+        supplier.setContactName(request.contactName());
+        supplier.setEmail(request.email());
+        supplier.setPhone(request.phone());
+        supplier.setActive(request.active() != null ? request.active() : true);
         supplier.setCreatedAt(LocalDateTime.now());
 
         SupplierEntity savedSupplier = repository.save(supplier);
@@ -106,6 +109,9 @@ public class SupplierService {
                 entity.getId(),
                 entity.getCode(),
                 entity.getName(),
+                entity.getContactName(),
+                entity.getEmail(),
+                entity.getPhone(),
                 entity.getActive(),
                 contacts
         );
@@ -136,6 +142,9 @@ public class SupplierService {
                 ));
 
         supplier.setName(request.name());
+        supplier.setContactName(request.contactName());
+        supplier.setEmail(request.email());
+        supplier.setPhone(request.phone());
         supplier.setActive(request.active());
 
         repository.save(supplier);

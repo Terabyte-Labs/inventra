@@ -16,6 +16,7 @@ public record CreateFormulaRequest(
         @NotBlank String outputProductSku,
         @NotNull @Positive BigDecimal outputQuantity,
         @NotBlank String outputUnitOfMeasureCode,
-        @NotEmpty List<CreateFormulaItemRequest> items
+        @NotEmpty List<@Valid CreateFormulaItemRequest> items,
+        @NotEmpty List<@Valid CreateFormulaProcessStepRequest> processSteps
 ) {
 }

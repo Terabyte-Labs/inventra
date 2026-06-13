@@ -15,8 +15,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +29,7 @@ public class FormulaService {
 
     private final FormulaRepository formulaRepository;
     private final FormulaItemRepository formulaItemRepository;
+    private final FormulaProcessStepRepository formulaProcessStepRepository;
     private final ProductRepository productRepository;
     private final UnitOfMeasureRepository unitOfMeasureRepository;
 
@@ -62,6 +67,8 @@ public class FormulaService {
                         "Unit of measure not found for code: " + request.outputUnitOfMeasureCode()
                 ));
 
+        validateUniqueProcessStepNumbers(request.processSteps());
+
         FormulaEntity formula = new FormulaEntity();
 
         formula.setId(UUID.randomUUID());
@@ -75,6 +82,9 @@ public class FormulaService {
         formula.setOutputUnitOfMeasure(outputUnit);
 
         formulaRepository.save(formula);
+
+        Map<Integer, FormulaProcessStepEntity> processStepsByNumber =
+                createProcessSteps(formula, request.processSteps());
 
         int line = 1;
 
@@ -94,11 +104,26 @@ public class FormulaService {
                             "Unit of measure not found for code: " + itemRequest.unitOfMeasureCode()
                     ));
 
+            FormulaProcessStepEntity processStep = null;
+
+            if (itemRequest.processStepNumber() != null) {
+                processStep = processStepsByNumber.get(itemRequest.processStepNumber());
+
+                if (processStep == null) {
+                    throw new BusinessException(
+                            "FORMULA_PROCESS_STEP_NOT_FOUND",
+                            "Process step not found for step number: "
+                                    + itemRequest.processStepNumber()
+                    );
+                }
+            }
+
             FormulaItemEntity item = new FormulaItemEntity();
 
             item.setId(UUID.randomUUID());
             item.setFormula(formula);
             item.setProduct(rawMaterial);
+            item.setProcessStep(processStep);
             item.setQuantity(itemRequest.quantity());
             item.setUnitOfMeasure(itemUnit);
             item.setLineOrder(line++);
@@ -108,6 +133,50 @@ public class FormulaService {
         }
 
         return findByCodeAndVersion(formula.getCode(), formula.getVersion());
+    }
+
+    private void validateUniqueProcessStepNumbers(
+            List<CreateFormulaProcessStepRequest> processSteps
+    ) {
+        long distinctCount = processSteps.stream()
+                .map(CreateFormulaProcessStepRequest::stepNumber)
+                .distinct()
+                .count();
+
+        if (distinctCount != processSteps.size()) {
+            throw new BusinessException(
+                    "DUPLICATED_FORMULA_PROCESS_STEP",
+                    "Formula process step numbers must be unique"
+            );
+        }
+    }
+
+    private Map<Integer, FormulaProcessStepEntity> createProcessSteps(
+            FormulaEntity formula,
+            List<CreateFormulaProcessStepRequest> processStepRequests
+    ) {
+        return processStepRequests
+                .stream()
+                .sorted(Comparator.comparing(CreateFormulaProcessStepRequest::stepNumber))
+                .map(request -> {
+                    FormulaProcessStepEntity step = new FormulaProcessStepEntity();
+
+                    step.setId(UUID.randomUUID());
+                    step.setFormula(formula);
+                    step.setStepNumber(request.stepNumber());
+                    step.setName(request.name());
+                    step.setDescription(request.description());
+                    step.setStepType(request.stepType());
+                    step.setRequiresQualityCheck(request.requiresQualityCheck());
+                    step.setExpectedDurationMinutes(request.expectedDurationMinutes());
+                    step.setActive(true);
+
+                    return formulaProcessStepRepository.save(step);
+                })
+                .collect(Collectors.toMap(
+                        FormulaProcessStepEntity::getStepNumber,
+                        Function.identity()
+                ));
     }
 
     @Transactional(readOnly = true)
@@ -169,6 +238,12 @@ public class FormulaService {
                 .map(this::toItemResponse)
                 .toList();
 
+        List<FormulaProcessStepResponse> processSteps = formulaProcessStepRepository
+                .findByFormulaIdOrderByStepNumberAsc(formula.getId())
+                .stream()
+                .map(this::toProcessStepResponse)
+                .toList();
+
         ProductEntity outputProduct = formula.getProduct();
 
         return new FormulaDetailResponse(
@@ -195,6 +270,9 @@ public class FormulaService {
                 items.size(),
                 items,
 
+                processSteps.size(),
+                processSteps,
+
                 formula.getCreatedAt()
         );
     }
@@ -202,6 +280,10 @@ public class FormulaService {
     private FormulaSearchResponse toSearchResponse(FormulaEntity formula) {
         Integer itemsCount = formulaItemRepository
                 .findByFormulaId(formula.getId())
+                .size();
+
+        Integer processStepsCount = formulaProcessStepRepository
+                .findByFormulaIdOrderByStepNumberAsc(formula.getId())
                 .size();
 
         ProductEntity outputProduct = formula.getProduct();
@@ -224,13 +306,15 @@ public class FormulaService {
                 formula.getOutputUnitOfMeasure().getCode(),
                 formula.getOutputUnitOfMeasure().getName(),
 
-                itemsCount
+                itemsCount,
+                processStepsCount
         );
     }
 
 
     private FormulaItemResponse toItemResponse(FormulaItemEntity item) {
         ProductEntity product = item.getProduct();
+        FormulaProcessStepEntity processStep = item.getProcessStep();
 
         return new FormulaItemResponse(
                 item.getId(),
@@ -244,7 +328,26 @@ public class FormulaService {
                 item.getUnitOfMeasure().getName(),
 
                 product.getUnitOfMeasure().getCode(),
-                product.getUnitOfMeasure().getName()
+                product.getUnitOfMeasure().getName(),
+
+                processStep != null ? processStep.getStepNumber() : null,
+                processStep != null ? processStep.getName() : null,
+                processStep != null ? processStep.getStepType().name() : null
+        );
+    }
+
+    private FormulaProcessStepResponse toProcessStepResponse(
+            FormulaProcessStepEntity step
+    ) {
+        return new FormulaProcessStepResponse(
+                step.getId(),
+                step.getStepNumber(),
+                step.getName(),
+                step.getDescription(),
+                step.getStepType(),
+                step.getRequiresQualityCheck(),
+                step.getExpectedDurationMinutes(),
+                step.getActive()
         );
     }
 }

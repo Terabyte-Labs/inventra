@@ -18,6 +18,8 @@ public record CreateFormulaItemRequest(
         @NotBlank
         String unitOfMeasureCode,
 
+        Integer processStepNumber,
+
         String notes
 
 ) {

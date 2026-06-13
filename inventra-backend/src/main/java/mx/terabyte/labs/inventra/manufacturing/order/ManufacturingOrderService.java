@@ -9,6 +9,7 @@ import mx.terabyte.labs.inventra.catalog.unit.UnitConversionService;
 import mx.terabyte.labs.inventra.catalog.unit.UnitOfMeasureEntity;
 import mx.terabyte.labs.inventra.catalog.unit.UnitOfMeasureRepository;
 import mx.terabyte.labs.inventra.common.enums.ManufacturingOrderStatus;
+import mx.terabyte.labs.inventra.common.enums.ManufacturingOrderStepStatus;
 import mx.terabyte.labs.inventra.common.enums.MovementType;
 import mx.terabyte.labs.inventra.common.enums.ReferenceType;
 import mx.terabyte.labs.inventra.common.exception.BusinessException;
@@ -24,6 +25,7 @@ import mx.terabyte.labs.inventra.inventory.warehouse.WarehouseEntity;
 import mx.terabyte.labs.inventra.inventory.warehouse.WarehouseRepository;
 import mx.terabyte.labs.inventra.manufacturing.formula.FormulaEntity;
 import mx.terabyte.labs.inventra.manufacturing.formula.FormulaItemRepository;
+import mx.terabyte.labs.inventra.manufacturing.formula.FormulaProcessStepRepository;
 import mx.terabyte.labs.inventra.manufacturing.formula.FormulaRepository;
 import mx.terabyte.labs.inventra.manufacturing.order.dto.*;
 import org.springframework.data.domain.Page;
@@ -57,6 +59,8 @@ public class ManufacturingOrderService {
     private final UnitOfMeasureRepository unitOfMeasureRepository;
     private final UnitConversionService unitConversionService;
     private final InventoryMovementMapper inventoryMovementMapper;
+    private final FormulaProcessStepRepository formulaProcessStepRepository;
+    private final ManufacturingOrderStepRepository manufacturingOrderStepRepository;
 
 
     @Transactional
@@ -118,6 +122,23 @@ public class ManufacturingOrderService {
 
         manufacturingOrderRepository.save(order);
         log.info("Manufacturing order created successfully: orderId={}, orderNumber={}", order.getId(), order.getOrderNumber());
+
+        formulaProcessStepRepository.findByFormulaIdOrderByStepNumberAsc(formula.getId())
+                .forEach(step -> {
+                    ManufacturingOrderStepEntity orderStep = new ManufacturingOrderStepEntity();
+
+                    orderStep.setId(UUID.randomUUID());
+                    orderStep.setManufacturingOrder(order);
+                    orderStep.setStepNumber(step.getStepNumber());
+                    orderStep.setName(step.getName());
+                    orderStep.setDescription(step.getDescription());
+                    orderStep.setStepType(step.getStepType());
+                    orderStep.setStatus(ManufacturingOrderStepStatus.PENDING);
+                    orderStep.setRequiresQualityCheck(step.getRequiresQualityCheck());
+                    orderStep.setExpectedDurationMinutes(step.getExpectedDurationMinutes());
+
+                    manufacturingOrderStepRepository.save(orderStep);
+                });
 
         return new CreateManufacturingOrderResponse(
                 order.getId(),
@@ -661,6 +682,38 @@ public class ManufacturingOrderService {
                 .findByManufacturingOrderIdWithDetails(order.getId())
                 .stream()
                 .map(inventoryMovementMapper::toResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ManufacturingOrderStepResponse> findStepsByOrderNumber(
+            String orderNumber
+    ) {
+        ManufacturingOrderEntity order = manufacturingOrderRepository
+                .findByOrderNumber(orderNumber)
+                .orElseThrow(() -> new BusinessException(
+                        "MANUFACTURING_ORDER_NOT_FOUND",
+                        "Manufacturing order not found: " + orderNumber
+                ));
+
+        return manufacturingOrderStepRepository
+                .findByManufacturingOrderIdOrderByStepNumberAsc(order.getId())
+                .stream()
+                .map(step -> new ManufacturingOrderStepResponse(
+                        step.getId(),
+                        order.getOrderNumber(),
+                        step.getStepNumber(),
+                        step.getName(),
+                        step.getDescription(),
+                        step.getStepType(),
+                        step.getStatus(),
+                        step.getRequiresQualityCheck(),
+                        step.getExpectedDurationMinutes(),
+                        step.getStartedAt(),
+                        step.getCompletedAt(),
+                        step.getQualityResult(),
+                        step.getNotes()
+                ))
                 .toList();
     }
 

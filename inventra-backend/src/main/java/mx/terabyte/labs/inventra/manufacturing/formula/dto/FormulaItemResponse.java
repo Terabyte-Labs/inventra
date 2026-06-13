@@ -13,6 +13,9 @@ public record FormulaItemResponse(
         String unitOfMeasureCode,
         String unitOfMeasureName,
         String inventoryUnitOfMeasureCode,
-        String inventoryUnitOfMeasureName
+        String inventoryUnitOfMeasureName,
+        Integer processStepNumber,
+        String processStepName,
+        String processStepType
 ) {
 }
