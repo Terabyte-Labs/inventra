@@ -34,6 +34,12 @@ public class UserEntity {
     @Column(nullable = false)
     private Boolean active;
 
+    @Column(name = "must_change_password", nullable = false)
+    private Boolean mustChangePassword;
+
+    @Column(name = "last_password_changed_at")
+    private LocalDateTime lastPasswordChangedAt;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
