@@ -121,7 +121,14 @@ public class ManufacturingOrderService {
         order.setCreatedAt(LocalDateTime.now());
 
         manufacturingOrderRepository.save(order);
-        log.info("Manufacturing order created successfully: orderId={}, orderNumber={}", order.getId(), order.getOrderNumber());
+        // include actor information where available
+        try {
+            UserEntity actor = currentUserService.getCurrentUser();
+            log.info("Manufacturing order created successfully: orderId={}, orderNumber={}, createdByUserId={}",
+                    order.getId(), order.getOrderNumber(), actor != null ? actor.getId() : null);
+        } catch (Exception ex) {
+            log.info("Manufacturing order created successfully: orderId={}, orderNumber={}", order.getId(), order.getOrderNumber());
+        }
 
         formulaProcessStepRepository.findByFormulaIdOrderByStepNumberAsc(formula.getId())
                 .forEach(step -> {
@@ -179,8 +186,13 @@ public class ManufacturingOrderService {
         order.setStartedAt(LocalDateTime.now());
 
         manufacturingOrderRepository.save(order);
-        log.info("Manufacturing order started successfully: orderNumber={}, startedAt={}",
-                orderNumber, order.getStartedAt());
+        try {
+            UserEntity actor = currentUserService.getCurrentUser();
+            log.info("Manufacturing order started: orderNumber={}, startedAt={}, startedByUserId={}",
+                    orderNumber, order.getStartedAt(), actor != null ? actor.getId() : null);
+        } catch (Exception ex) {
+            log.info("Manufacturing order started: orderNumber={}, startedAt={}", orderNumber, order.getStartedAt());
+        }
 
         return new StartManufacturingOrderResponse(
                 order.getId(),
@@ -291,6 +303,16 @@ public class ManufacturingOrderService {
         movement.setAfterQuantity(after);
 
         inventoryMovementRepository.save(movement);
+
+        // log inventory consumption (before/after) and movement id for traceability
+        try {
+            UserEntity actor = currentUserService.getCurrentUser();
+            log.info("Manufacturing input recorded: orderNumber={}, sku={}, quantity={}, stockBefore={}, stockAfter={}, movementId={}, recordedByUserId={}",
+                    orderNumber, product.getSku(), request.quantity(), before, after, movement.getId(), actor != null ? actor.getId() : null);
+        } catch (Exception ex) {
+            log.info("Manufacturing input recorded: orderNumber={}, sku={}, quantity={}, stockBefore={}, stockAfter={}, movementId={}",
+                    orderNumber, product.getSku(), request.quantity(), before, after, movement.getId());
+        }
 
         ManufacturingOrderInputEntity input = new ManufacturingOrderInputEntity();
 
@@ -419,6 +441,16 @@ public class ManufacturingOrderService {
 
         inventoryMovementRepository.save(movement);
 
+        // log inventory production (before/after) and movement id
+        try {
+            UserEntity actor = currentUserService.getCurrentUser();
+            log.info("Manufacturing output recorded: orderNumber={}, sku={}, quantity={}, generatedLot={}, stockBefore={}, stockAfter={}, movementId={}, recordedByUserId={}",
+                    orderNumber, product.getSku(), request.quantity(), generatedLotNumber, before, after, movement.getId(), actor != null ? actor.getId() : null);
+        } catch (Exception ex) {
+            log.info("Manufacturing output recorded: orderNumber={}, sku={}, quantity={}, generatedLot={}, stockBefore={}, stockAfter={}, movementId={}",
+                    orderNumber, product.getSku(), request.quantity(), generatedLotNumber, before, after, movement.getId());
+        }
+
         ManufacturingOrderOutputEntity output = new ManufacturingOrderOutputEntity();
 
         output.setId(UUID.randomUUID());
@@ -481,6 +513,14 @@ public class ManufacturingOrderService {
         order.setCompletedAt(LocalDateTime.now());
 
         manufacturingOrderRepository.save(order);
+        // completion event with variance
+        try {
+            log.info("Manufacturing order completed: orderNumber={}, plannedQty={}, actualQty={}, variance={}, completedAt={}",
+                    order.getOrderNumber(), order.getPlannedQuantity(), actualQuantity,
+                    actualQuantity.subtract(order.getPlannedQuantity()), order.getCompletedAt());
+        } catch (Exception ex) {
+            log.info("Manufacturing order completed: orderNumber={}, completedAt={}", order.getOrderNumber(), order.getCompletedAt());
+        }
 
         return new CompleteManufacturingOrderResponse(
                 order.getId(),

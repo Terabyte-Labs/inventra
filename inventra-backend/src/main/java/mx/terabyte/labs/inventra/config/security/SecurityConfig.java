@@ -25,6 +25,8 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import javax.crypto.spec.SecretKeySpec;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
@@ -37,9 +39,12 @@ import java.util.List;
 public class SecurityConfig {
     private final RestAuthenticationEntryPoint restAuthenticationEntryPoint;
     private final RestAccessDeniedHandler restAccessDeniedHandler;
+    private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+
+        log.info("Initializing security filter chain: sessionPolicy=STATELESS, corsEnabled=true");
 
         http
                 .cors(Customizer.withDefaults())
@@ -78,6 +83,8 @@ public class SecurityConfig {
                             : Arrays.stream(rolesClaim.split(" "))
                             .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
                             .toList();
+
+            log.debug("JWT roles parsed: username={}, roleCount={}", jwt.getSubject(), authorities.size());
 
             return new JwtAuthenticationToken(
                     jwt,

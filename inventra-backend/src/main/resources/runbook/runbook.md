@@ -1,5 +1,7 @@
 # Inventra Demo en AWS Lightsail
 
+> Actualizado para incluir los cambios recientes de Inventra: fórmulas con ruta de fabricación, ejecución de órdenes paso por paso, proveedores con contactos, entradas/salidas de inventario, almacenes y validaciones nuevas.
+
 Runbook para desplegar **Inventra** como demo en una sola instancia AWS Lightsail.
 
 ---
@@ -46,6 +48,71 @@ Solo se abre al público:
 ```
 
 ---
+
+---
+
+## 1.1 Alcance funcional actual de Inventra
+
+Este runbook asume que el código fuente ya contiene los cambios recientes del demo:
+
+```text
+Catálogos
+  ├── Productos
+  ├── Tipos de producto desde backend
+  ├── Categorías
+  └── Unidades de medida
+
+Proveedores
+  ├── Crear proveedor
+  ├── Actualizar proveedor
+  └── Agregar contactos
+
+Inventario
+  ├── Entradas / recepción de material
+  ├── Salidas / despacho de inventario
+  ├── Movimientos de auditoría
+  ├── Existencias
+  └── Almacenes
+
+Manufactura
+  ├── Fórmulas con versiones
+  ├── Ruta/proceso de fabricación por fórmula
+  ├── Insumos ligados a proceso
+  ├── Órdenes de fabricación
+  ├── Consumos
+  ├── Producción
+  ├── Movimientos de producción
+  └── Ejecución paso por paso de la orden
+```
+
+Regla profesional del modelo:
+
+```text
+No se edita destructivamente una fórmula histórica.
+Actualizar fórmula = crear nueva versión.
+```
+
+La fórmula define:
+
+```text
+Qué se produce
+Cuánto se produce
+Qué insumos consume
+En qué paso se consume cada insumo
+Qué ruta/proceso de fabricación debe seguirse
+```
+
+La orden de fabricación ejecuta:
+
+```text
+Una fórmula específica
+Una versión específica
+Una copia de los pasos de esa fórmula
+Consumos reales
+Producción real
+Movimientos reales
+```
+
 
 ## 2. Crear instancia Lightsail
 
@@ -432,6 +499,59 @@ El root del repo debe tener el `pom.xml` padre.
 
 ---
 
+## 12.1 Preflight obligatorio antes de compilar
+
+Antes de generar el JAR o el build web, validar que los últimos cambios estén aplicados.
+
+Desde el repo backend:
+
+```bash
+cd /opt/inventra-source-code
+
+find . -path "*/db/migration/*" -name "V*.sql" | sort
+```
+
+Validar que existan migraciones para:
+
+```text
+formula_process_steps
+formula_items.process_step_id
+manufacturing_order_steps
+```
+
+Ejemplos de nombres esperados, ajustados al número real de Flyway:
+
+```text
+V13__formula_process_and_order_steps.sql
+V14__manufacturing_order_steps_execution.sql
+```
+
+Importante:
+
+```text
+No dejar archivos con nombre V_NEXT__...
+No repetir el mismo número de versión Flyway.
+No renombrar migraciones ya aplicadas en una BD existente.
+```
+
+Si `manufacturing_order_steps` ya fue creado por una migración anterior con `CREATE TABLE IF NOT EXISTS`, una migración posterior idempotente no debe romper, pero el orden y numeración deben quedar claros.
+
+Validar que el backend tenga estos componentes recientes:
+
+```bash
+find inventra-backend/src/main/java -name "*FormulaProcessStep*" -print
+find inventra-backend/src/main/java -name "*ManufacturingOrderStep*" -print
+```
+
+Validar que el frontend tenga los tipos actualizados:
+
+```bash
+grep -R "processSteps" -n /opt/inventra-web/src/features || true
+grep -R "ManufacturingOrderStep" -n /opt/inventra-web/src/features || true
+```
+
+---
+
 ## 13. Compilar backend Maven
 
 Desde el root del repo:
@@ -594,7 +714,7 @@ Flyway debe impactar la BD vacía al arrancar el backend:
 ```text
 Postgres vacío
 → Backend arranca
-→ Flyway ejecuta V1...V19
+→ Flyway ejecuta V1...hasta la última migración del repo
 → BD lista
 ```
 
@@ -626,6 +746,38 @@ Validar tablas de seguridad:
 ```bash
 docker exec -it inventra-postgres psql -U inventra -d inventra -c "\dt security.*"
 ```
+
+Validar tablas nuevas de proceso de fórmula y ejecución de órdenes:
+
+```bash
+docker exec -it inventra-postgres psql -U inventra -d inventra -c "\d manufacturing.formula_process_steps"
+
+docker exec -it inventra-postgres psql -U inventra -d inventra -c "\d manufacturing.manufacturing_order_steps"
+
+docker exec -it inventra-postgres psql -U inventra -d inventra -c "\d manufacturing.formula_items"
+```
+
+Validar columnas clave:
+
+```bash
+docker exec -it inventra-postgres psql -U inventra -d inventra -c "
+select column_name, data_type
+from information_schema.columns
+where table_schema = 'manufacturing'
+  and table_name = 'formula_items'
+  and column_name = 'process_step_id';
+"
+
+docker exec -it inventra-postgres psql -U inventra -d inventra -c "
+select column_name, data_type
+from information_schema.columns
+where table_schema = 'manufacturing'
+  and table_name = 'manufacturing_order_steps'
+order by ordinal_position;
+"
+```
+
+
 
 ---
 
@@ -679,6 +831,80 @@ JSON de error custom ✅
 ```
 
 ---
+
+
+---
+
+## 18.1 Smoke tests de módulos recientes
+
+Sin token, la mayoría de endpoints protegidos pueden responder `401`, y eso está bien porque valida proxy/backend/security.
+
+Fórmulas:
+
+```bash
+curl -i "http://localhost/api/v1/manufacturing/formulas?page=0&size=5"
+```
+
+Detalle de fórmula con versión:
+
+```bash
+curl -i "http://localhost/api/v1/manufacturing/formulas/PAINT-WHITE/versions/1"
+```
+
+Si tienes token:
+
+```bash
+TOKEN="PEGA_AQUI_TU_TOKEN"
+
+curl -s "http://localhost/api/v1/manufacturing/formulas?page=0&size=5"   -H "Authorization: Bearer ${TOKEN}" | jq
+```
+
+La respuesta de detalle debe incluir, si la fórmula ya fue creada con ruta:
+
+```json
+{
+  "processStepsCount": 5,
+  "processSteps": [],
+  "items": []
+}
+```
+
+Órdenes de fabricación paso por paso:
+
+```bash
+ORDER_NUMBER="MO-2026-0001"
+
+curl -i "http://localhost/api/v1/manufacturing/orders/${ORDER_NUMBER}/steps"
+```
+
+Con token:
+
+```bash
+curl -s "http://localhost/api/v1/manufacturing/orders/${ORDER_NUMBER}/steps"   -H "Authorization: Bearer ${TOKEN}" | jq
+```
+
+Acciones de pasos:
+
+```bash
+curl -X POST "http://localhost/api/v1/manufacturing/orders/${ORDER_NUMBER}/steps/1/start"   -H "Authorization: Bearer ${TOKEN}"   -H "Content-Type: application/json"   -d '{"notes":"Inicio de paso desde smoke test"}'
+
+curl -X POST "http://localhost/api/v1/manufacturing/orders/${ORDER_NUMBER}/steps/1/complete"   -H "Authorization: Bearer ${TOKEN}"   -H "Content-Type: application/json"   -d '{"notes":"Paso completado desde smoke test"}'
+```
+
+Para control de calidad:
+
+```bash
+curl -X POST "http://localhost/api/v1/manufacturing/orders/${ORDER_NUMBER}/steps/3/pass"   -H "Authorization: Bearer ${TOKEN}"   -H "Content-Type: application/json"   -d '{"notes":"Control aprobado"}'
+
+curl -X POST "http://localhost/api/v1/manufacturing/orders/${ORDER_NUMBER}/steps/3/fail"   -H "Authorization: Bearer ${TOKEN}"   -H "Content-Type: application/json"   -d '{"notes":"Control rechazado"}'
+```
+
+Regla esperada:
+
+```text
+La orden no debe completarse si tiene pasos pendientes, en proceso o fallidos.
+```
+
 
 ## 19. Nota importante sobre `localhost:8080`
 
@@ -790,6 +1016,41 @@ npm install
 npm run build
 ```
 
+
+Validar específicamente que el build incluya las pantallas recientes:
+
+```bash
+grep -R "Ruta de fabricación" -n src || true
+grep -R "processSteps" -n src || true
+grep -R "manufacturing_order_steps" -n src || true
+grep -R "steps/" -n src/features || true
+```
+
+Si `npm run build` falla con errores tipo:
+
+```text
+Property 'processSteps' does not exist on type 'FormulaDetail'
+Property 'processStepNumber' does not exist on type 'FormulaItem'
+Property 'processStepsCount' does not exist on type 'FormulaSearch'
+```
+
+entonces el frontend tiene `FormulasPage.tsx` nuevo pero `formulaTypes.ts` viejo.
+
+Solución:
+
+```text
+Actualizar src/features/formulas/formulaTypes.ts
+o actualizar la ruta equivalente si el módulo vive en src/features/manufacturing
+```
+
+Si la pantalla se ve descuadrada, inputs oscuros o modal al final de la página:
+
+```text
+Revisar que el fix CSS de FormulasPage.css esté pegado al final del archivo.
+Después hacer hard refresh: Ctrl + Shift + R.
+```
+
+
 Copiar build a Nginx:
 
 ```bash
@@ -837,6 +1098,47 @@ Pendiente:
 Build y subir inventra-web
 Validar login
 Crear seed o usuario demo si la BD no tiene usuario
+Validar fórmulas con procesos
+Validar órdenes de fabricación paso por paso
+```
+
+---
+
+## 24.1 Estado funcional esperado después de los últimos cambios
+
+Con el código actual, además de login/productos, se espera poder validar:
+
+```text
+Productos
+  ├── Crear / actualizar
+  ├── Tipo de producto mostrado desde backend
+  └── Activar / desactivar
+
+Proveedores
+  ├── Crear / actualizar
+  └── Agregar contactos
+
+Inventario
+  ├── Registrar entrada
+  ├── Registrar salida
+  ├── Ver movimientos
+  └── Ver existencias
+
+Fórmulas
+  ├── Crear fórmula
+  ├── Crear nueva versión
+  ├── Definir ruta de fabricación
+  ├── Ligar insumos a procesos
+  └── Ver detalle con procesos
+
+Órdenes de fabricación
+  ├── Crear orden
+  ├── Iniciar orden
+  ├── Ejecutar proceso paso por paso
+  ├── Registrar consumos
+  ├── Registrar producción
+  ├── Ver movimientos
+  └── Completar solo cuando los pasos estén cerrados correctamente
 ```
 
 ---
@@ -979,6 +1281,91 @@ http://TU_IP_PUBLICA
 ---
 
 ## 28. Troubleshooting
+
+
+### Error: tabla `manufacturing_order_steps` no existe
+
+Causa probable:
+
+```text
+No se aplicó la migración de ejecución de pasos.
+```
+
+Validar:
+
+```bash
+docker exec -it inventra-postgres psql -U inventra -d inventra -c "\dt manufacturing.manufacturing_order_steps"
+```
+
+Solución:
+
+```text
+Revisar migraciones Flyway.
+Renombrar V_NEXT__... al número real.
+Recompilar backend.
+Recrear BD solo si es demo y puedes perder datos.
+```
+
+### Error: `processSteps` no existe en frontend
+
+Causa probable:
+
+```text
+FormulasPage.tsx nuevo + formulaTypes.ts viejo.
+```
+
+Solución:
+
+```text
+Actualizar formulaTypes.ts con:
+- FormulaProcessStep
+- FormulaSearch.processStepsCount
+- FormulaDetail.processStepsCount
+- FormulaDetail.processSteps
+- FormulaItem.processStepNumber
+- FormulaItem.processStepName
+- CreateFormulaRequest.processSteps
+```
+
+### Pantalla Fórmulas descuadrada
+
+Síntomas:
+
+```text
+Botón Nueva fórmula gigante
+Íconos enormes
+Inputs oscuros
+Modal aparece abajo de la página
+```
+
+Solución:
+
+```text
+Pegar el fix CSS al final de FormulasPage.css.
+Reiniciar Vite si aplica.
+Hard refresh en navegador.
+```
+
+### No deja completar orden
+
+Ahora es esperado si faltan pasos.
+
+Validar pasos:
+
+```bash
+curl -s "http://localhost/api/v1/manufacturing/orders/${ORDER_NUMBER}/steps"   -H "Authorization: Bearer ${TOKEN}" | jq
+```
+
+Estados que bloquean completar:
+
+```text
+PENDING
+IN_PROGRESS
+FAILED
+```
+
+Cerrar pasos pendientes, aprobar calidad o corregir el proceso antes de completar.
+
 
 ### Error: `no main manifest attribute`
 
